@@ -1,0 +1,31 @@
+{
+	"test_len": 6,
+	"prediction_len": 0,
+	"factors": false,
+
+	"training": {
+		"epochs": 100,
+		"batch_size": 32
+	},
+	"model": {
+		"loss": "mse",
+		"optimizer": "adam",
+		"n_step_out": 12,
+		"layers": [
+			{
+				"type": "LSTM",
+				"neurons": 50,
+				"n_step_in": 24,
+				"return_seq": false
+			},
+			{
+				"type": "Dropout",
+				"rate": 0.2
+			},
+			{
+				"type": "Dense",
+				"activation": "linear"
+			}
+		]
+	}
+}
