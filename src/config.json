@@ -1,22 +1,22 @@
 {
-	"test_len": 6,
-	"prediction_len": 0,
+	"test_len": 0,
+	"prediction_len": 9,
 	"factors": false,
 
 	"training": {
-		"epochs": 100,
-		"batch_size": 32
+		"epochs": 5,
+		"batch_size": 36
 	},
 	"model": {
-		"loss": "mse",
+		"loss": "mae",
 		"optimizer": "adam",
-		"n_step_out": 12,
+		"n_step_out": 9,
 		"layers": [
 			{
 				"type": "LSTM",
-				"neurons": 50,
-				"n_step_in": 24,
-				"return_seq": false
+				"neurons": 30,
+				"n_step_in": 36,
+				"return_sequences": false
 			},
 			{
 				"type": "Dropout",
