@@ -8,7 +8,7 @@ import matplotlib as mpl
 mpl.use('TkAgg') # to fix problem on Mac OS
 import matplotlib.pyplot as plt
 
-from src.utils import metrics_eval, Timer, save_image, config_generator
+from src.utils import metrics_eval, Timer, save_image
 from src.data.data_processor import DataProcessor
 from src.model.model import Model
 
@@ -28,9 +28,9 @@ target = pd.read_csv("data/series_g.csv", sep=";").series_g.values
 # target = pd.read_csv("data/PJME_hourly.csv", sep=",").PJME_MW.values
 
 # Import factors
-f1 = np.arange(1, len(target) + 1).reshape(-1, 1)
-f2 = (np.arange(1, len(target) + 1) ** 2).reshape(-1, 1)
-factors = f1
+# f1 = np.arange(1, len(target) + 1).reshape(-1, 1)
+# f2 = (np.arange(1, len(target) + 1) ** 2).reshape(-1, 1)
+# factors = f1
 # factors = np.hstack((f1, f2))
 
 #################################           Model training                ##############################################
@@ -101,6 +101,7 @@ else:
 #################################   Making new folder with results        ##############################################
 
 path = main_dir + "/reports"
+
 try:
     os.chdir(path)
 except:
@@ -122,15 +123,15 @@ print()
 #################################     Printing results and plots        ################################################
 
 # inverse transform
-predicted = data_processor.scaler_inverse_transform(predicted)
+predicted = data_processor.scaler_inverse_transform(predicted, target=True)
 train = data_processor.scaler_inverse_transform(train[:, -1], target=True)
 if configs["test_len"] != 0:
     test = data_processor.scaler_inverse_transform(test[:, -1], target=True)
 
 plt.plot(range(len(train)), train, label="Train")
-plt.plot(range(len(train), len(train) + len(predicted)), predicted, label="Predicted")
 if configs["test_len"] != 0:
     plt.plot(range(len(train), len(train) + len(test)), test, label="Test")
+plt.plot(range(len(train), len(train) + len(predicted)), predicted, label="Predicted")
 plt.legend()
 save_image(new_folder, "train_test_predicted", fmt="png")
 plt.close()
