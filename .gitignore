@@ -1,3 +1,4 @@
+.idea
 __pycache__
 /src/model/grid_search.py
 /src/model/validation.py
