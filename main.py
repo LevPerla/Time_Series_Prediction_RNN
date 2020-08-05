@@ -2,6 +2,7 @@
 import os
 import json
 import pandas as pd
+from pprint import pprint
 import numpy as np
 import pickle
 import matplotlib as mpl
@@ -28,10 +29,10 @@ target = pd.read_csv("data/series_g.csv", sep=";").series_g.values
 # target = pd.read_csv("data/PJME_hourly.csv", sep=",").PJME_MW.values
 
 # Import factors
-# f1 = np.arange(1, len(target) + 1).reshape(-1, 1)
-# f2 = (np.arange(1, len(target) + 1) ** 2).reshape(-1, 1)
+f1 = np.arange(1, len(target) + 1).reshape(-1, 1)
+f2 = (np.arange(1, len(target) + 1) ** 2).reshape(-1, 1)
 # factors = f1
-# factors = np.hstack((f1, f2))
+factors = np.hstack((f1, f2))
 
 #################################           Model training                ##############################################
 #Set classes
@@ -53,6 +54,7 @@ model.n_features = input[0].size
 
 # Building model
 model.build_model(configs)
+pprint(model.params)
 model.model.summary()
 
 # Train/ Test split
@@ -150,7 +152,7 @@ if configs["test_len"] != 0 and len(test) >= len(predicted):
 #################################            Saving                     ################################################
 
 # Save classes
-with open(new_folder + '/model_%s.pickle' % (model.id), 'wb') as record_file:
+with open(new_folder + '/model.pickle', 'wb') as record_file:
     pickle.dump(model, record_file)
     record_file.close()
 
@@ -159,5 +161,7 @@ with open(new_folder + '/data_processor.pickle', 'wb') as record_file:
     record_file.close()
 
 # Config saving
-with open(new_folder + "/configs_%s.json" % (model.id), "w") as record_file:
+with open(new_folder + "/configs_%s.json" % model.id, "w") as record_file:
     json.dump(model.params, record_file)
+
+

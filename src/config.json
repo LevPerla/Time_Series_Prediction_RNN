@@ -1,16 +1,16 @@
 {
 	"test_len": 12,
 	"prediction_len": 12,
-	"factors": false,
+	"factors": true,
 
 	"training": {
-		"epochs": 100,
-		"batch_size": 1
+		"epochs": 20,
+		"batch_size": 64
 	},
 	"model": {
 		"loss": "mse",
 		"optimizer": "adam",
-		"n_step_out": 1,
+		"n_step_out": 12,
 		"layers": [
 			{
 				"type": "LSTM",

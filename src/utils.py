@@ -130,6 +130,7 @@ def set_seed(seed_value):
 #################################          config_generator                #############################################
 def config_generator(new_config, config):
     '''
+
     '''
 
     # Convert dict to [full_key, value]
@@ -150,8 +151,6 @@ def config_generator(new_config, config):
 
     read_new_dict(new_config, ())
 
-    # По full_key спускаемся через temp_config до value и меняем его
-    # Пока value выступает либо сам элемент, либо первый элемент list/tuple
 
     for full_key, value in list(dict_to_list.items()):
         temp_config = config
@@ -164,13 +163,12 @@ def config_generator(new_config, config):
                 temp_config = temp_config[key]
 
         if isinstance(value, list) or isinstance(value, tuple):
-            assert len(value), 'Передан пустой список'
+            assert len(value)
             temp_config[full_key[-1]] = value[0]
         else:
             temp_config[full_key[-1]] = value
             del dict_to_list[full_key]
 
-    # Генератор пробегает по всем комбинациям элементов config
 
     for values in product(*dict_to_list.values()):
         for ind, full_key in enumerate(dict_to_list):
