@@ -32,8 +32,6 @@ class Model:
         self.n_step_out = 0
         self.n_features = 0
         self.params = {}
-        self.last_obs_index = "0"
-        self.score = 0
         self.factors_names = "none"
 
     def load_model(self, filepath):
