@@ -2,6 +2,7 @@
 /src/model/grid_search.py
 /src/model/validation.py
 /reports
+/test.py
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

@@ -1,10 +1,17 @@
 # Time_Series_Prediction_RNN
-Status: in progress  
-To try it run main.py
+
+### Getting Started
+
+Installation:
+$ pip3 install -r requirements.txt
+
+### Example
+You could find it on notebooks/Example.ipynb
+
 
 Библиотека включает в себя два основных модуля:
 * Data_processor – класс, который отвечает за преобразование данных;
-*	Model – класс, который представляет из себя модель рекуррентной нейронной сети с ее атрибутами.
+* Model – класс, который представляет из себя модель рекуррентной нейронной сети с ее атрибутами.
 
 ### Data_processor
 Класс data_processor имеет 2 атрибута: scaler_target и scaler_factors, в которых сохраняются настройки шкалировщиков (классы, которые приводят значения совокупности к диапазону от 0 до 1).

@@ -4,17 +4,30 @@ from sklearn.preprocessing import MinMaxScaler
 
 #################################           DataProcessor Class            #############################################
 
-class DataProcessor():
+class DataProcessor:
     """ Class that provide methods to process data """
+
     def __init__(self):
         self.scaler_target = MinMaxScaler(feature_range=(0, 1))
         self.scaler_factors = MinMaxScaler(feature_range=(0, 1))
 
+    def scaler_fit(self, data, target=True):
+        """
+        scaler fitting
+        :param data: (np.array)  Sequence
+        :param target: (bool) if target: param= True, if factors: param= False
+        :return: None
+        """
+        if target:
+            self.scaler_target.fit(data.reshape(-1, 1))
+        else:
+            self.scaler_factors.fit(data)
+
     def scaler_fit_transform(self, data, target=True):
         """
         scaler fitting
-        :param data (np.array):  Sequence
-        :param target (bool):  if target: param= True, if factors: param= False
+        :param data: (np.array) Sequence
+        :param target: (bool) if target: param= True, if factors: param= False
         :return: np.array of scalled sequence
         """
         if target:
@@ -27,8 +40,8 @@ class DataProcessor():
     def scaler_transform(self, data, target=True):
         """
         scaler transform
-        :param data (np.array):  Sequence
-        :param target (bool):  if target: param= True, if factors: param= False
+        :param data: (np.array) Sequence
+        :param target: (bool) if target: param= True, if factors: param= False
         :return: np.array of scalled sequence
         """
         if target:
@@ -41,8 +54,8 @@ class DataProcessor():
     def scaler_inverse_transform(self, data, target=True):
         """
         scaler inverse transform
-        :param data (np.array):  Sequence
-        :param target (bool):  if target: param= True, if factors: param= False
+        :param data: (np.array) Sequence
+        :param target: (bool)  if target: param= True, if factors: param= False
         :return: np.array of unscalled sequence
         """
         if target:
@@ -55,7 +68,8 @@ class DataProcessor():
     def train_test_split(self, data, test_len):
         """
         Train/ Test split
-        :param data (np.array):  Sequence to split
+        :param data: (np.array) Sequence to split
+        :param test_len: (int) length of test sequence
         :return: np.array, np.array: train sequence, test sequence
         """
         # print("[DataProcessor] Train/Test split")
@@ -66,10 +80,10 @@ class DataProcessor():
     def split_sequence(self, data, n_steps_in, n_steps_out, all=False):
         """
         Split sequence to X and y
-        :param data (np.ndarray):  Sequences to split
-        :param n_steps_in (int): input size of NN
-        :param n_steps_out (int):  output size of NN
-        :param all (bool):  output with factors (used in point-by-point prediction with factors)
+        :param data: (np.ndarray) Sequences to split
+        :param n_steps_in: (int) input size of NN
+        :param n_steps_out: (int) output size of NN
+        :param all: (bool)  output with factors (used in point-by-point prediction with factors)
         :return: np.array, np.array: X sequence, y sequence
         """
         X, y = list(), list()
