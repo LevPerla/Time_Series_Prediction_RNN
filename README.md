@@ -3,7 +3,9 @@
 ### Getting Started
 
 Installation:
+<code>
 $ pip3 install -r requirements.txt
+<code>
 
 ### Example
 You could find it on notebooks/Example.ipynb
