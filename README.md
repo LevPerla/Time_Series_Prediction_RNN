@@ -1,43 +1,46 @@
 # Time_Series_Prediction_RNN
 
-### Getting Started
+## Getting Started
 
 Installation:  
 <code>$ pip3 install -r requirements.txt</code>
 
-### Example
+## Example
 You could find it on notebooks/Example.ipynb
 
-
-Библиотека включает в себя два основных модуля:
-* Data_processor – класс, который отвечает за преобразование данных;
-* Model – класс, который представляет из себя модель рекуррентной нейронной сети с ее атрибутами.
+## Discription
+The library includes two main modules:
+* Data_processor - class that is responsible for converting data;
+* Model - class that represents a model of a recurrent neural network with its attributes.
 
 ### Data_processor
-Класс data_processor имеет 2 атрибута: scaler_target и scaler_factors, в которых сохраняются настройки шкалировщиков (классы, которые приводят значения совокупности к диапазону от 0 до 1).
+The Data_processor class includes the main data processing methods that need to be performed when predicting using recurrent neural networks.
 
-#### К классу можно применить 5 методов:
-1.	scaler_fit_transform – обучение шкалировщика и приведение значений совокупности к диапазону от 0 до 1;
-2.	scaler_transform - приведение значений совокупности к диапазону от 0 до 1 на основе уже обученного шкалировщика;
-3.	scaler_inverse_transform – обратное преобразование прогнозных значений;
-4.	train_test_split – разбиение совокупности на обучающую и тестовую выборки;
-5.	split_sequence – преобразование временного ряда под формат ввода нейронной сети.
-Класс data_processor включает в себя основные способы обработки данных, которые необходимо выполнять при прогнозировании с помощью рекуррентных нейронных сетей.
+The Data_processor class has 2 attributes: <em>scaler_target</em> and <em>scale_factors</em>, which store scaler settings (classes that convert values to a range from 0 to 1).
+
+#### Data_processor supports 6 methods:
+1. scaler_fit - training the scaler;
+2. scaler_fit_transform - training the scaler and convert values to a range from 0 to 1;
+3. scale_transform - convert values to a range from 0 to 1 based on an already trained scaler;
+4. scaler_inverse_transform – inverse transformation of the forecast values;
+5. train_test_split - splitting the time series into training and test samples;
+6. split_sequence – transform of the time series under the input format of the neural network.
 
 ### Model
-#### Данный класс имеет 6 атрибутов:
-1.	model – модель нейронной сети типа Sequential (внутренний класс библиотеки Keras);
-2.	id – Номер модели в формате uuid, необходим для сохранения логов экспериментов;
-3.	n_step_in – длина входного вектора;
-4.	n_step_out – длина выходного вектора;
-5.	n_features – количество временных рядов на вход;
-6.	params – описание гиперпараметров модели в формате словаря Python.
+#### Model class has 7 attributes:
+1. model – a Sequential neural network model (internal class of the Keras library);
+2. id – model Number in uuid format, required for saving experiment logs;
+3. n_step_in - length of the input vector;
+4. n_step_out - length of the output vector;
+5. n_features - number of time series in the input;
+6. params - description of the model's hyperparameters in Python dictionary format.
+7. factors_names - names of features that used in training of model
 
-#### Класс model поддерживает следующие методы:
-1.	load_model – загрузить веса нейронной сети из файла формата h5;
-2.	build_model – собрать нейронную сеть согласно параметрам, указанным в файле configs.json;
-3.	fit – обучить нейронную сеть;
-4.	save – сохранение весов модели в формате h5 по указанному пути;
-5.	predict – спрогнозировать с помощью нейронной сети, использует два метода:
-a.	predict_point_by_point – циклический прогноз по одному значению вперед;
-b.	predict_multi_step – прогноз вектором на прогнозных горизонт.
+#### Model supports 5 methods:
+1. load_model – load weights of a neural network from a file format h5;
+2. build_model - build a neural network according to the parameters specified in the configs file.json;
+3. fit - train the neural network;
+4. save - save the model weights in h5 format along the specified path;
+5. predict - predict using a neural network, using two methods:
+a. predict_point_by_point - cyclical forecast for one value forward;
+b. predict_multi_step - forecast vector on the forecast horizon.
