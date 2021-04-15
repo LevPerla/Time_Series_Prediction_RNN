@@ -80,7 +80,7 @@ def train_test_pred_plot(train, test, predicted, save_dir=None):
     plt.legend()
     if save_dir is not None:
         save_image(save_dir, "train_test_predicted")
-        plt.close()
+        plt.show()
     else:
         plt.show()
 
