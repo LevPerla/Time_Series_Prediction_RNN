@@ -1,11 +1,11 @@
-.idea/
+**/.idea
 /src/model/grid_search.py
 /src/model/validation.py
-/reports
+**/reports/
 /test.py
 
 # Byte-compiled / optimized / DLL files
-__pycache__/
+**/__pycache__/
 *.py[cod]
 *$py.class
 
@@ -142,3 +142,5 @@ dmypy.json
 
 # Cython debug symbols
 cython_debug/
+
+**/.ipynb_checkpoints

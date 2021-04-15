@@ -1,12 +1,12 @@
 #################################           Load libs                      #############################################
-import os
 import uuid
 import numpy as np
-from src.utils import Timer, save_image
+from src.utils import Timer, save_image, split_sequence, train_test_split
 import matplotlib.pyplot as plt
-from keras import regularizers
-from keras.models import Sequential, load_model
-from keras.layers import Dense, Dropout, LSTM, GRU, Bidirectional, BatchNormalization
+from tensorflow.keras import regularizers
+from tensorflow.keras.models import Sequential, load_model
+from tensorflow.keras.layers import Dense, Dropout, LSTM, GRU, Bidirectional, BatchNormalization
+from sklearn.utils.validation import check_X_y, column_or_1d, _assert_all_finite
 
 
 #################################           Model Class                    #############################################
@@ -14,7 +14,7 @@ from keras.layers import Dense, Dropout, LSTM, GRU, Bidirectional, BatchNormaliz
 class Model:
     """ A class for an building and inferencing an RNN models  """
 
-    def __init__(self):
+    def __init__(self, configs, n_step_in, n_step_out, test_len, n_features=0, loss="mae", optimizer="adam"):
         """
         Attributes:
         model (Keras.Sequential): Keras model
@@ -27,12 +27,17 @@ class Model:
         score (float): five decades accuracy
         """
         self.model = Sequential()
-        self.id = -1
-        self.n_step_in = 0
-        self.n_step_out = 0
-        self.n_features = 0
-        self.params = {}
+        self.id = str(uuid.uuid1())
+        self.n_step_in = n_step_in
+        self.n_step_out = n_step_out
+        self.n_features = n_features + 1
+        self.params = configs
         self.factors_names = "none"
+        self.test_len = test_len
+        self.loss = loss
+        self.optimizer = optimizer
+
+        self._build_model()
 
     def load_model(self, filepath):
         """
@@ -43,87 +48,21 @@ class Model:
         print('[Model] Loading model from file %s' % filepath)
         self.model = load_model(filepath)
 
-    def build_model(self, configs):
-        """
-        A method for building and compiling RNN models
-        :param configs: (dict) dict with params of model to build
-        :return: None
-        """
-        timer = Timer()
-        timer.start()
-
-        self.id = str(uuid.uuid1())
-        self.n_step_out = configs['model']['n_step_out']
-        self.params = configs
-
-        for layer in configs['model']['layers']:
-            neurons = layer['neurons'] if 'neurons' in layer else None
-            dropout_rate = layer['rate'] if 'rate' in layer else None
-            activation = layer['activation'] if 'activation' in layer else None
-            return_seq = layer['return_sequences'] if 'return_sequences' in layer else None
-            n_step_in = layer['n_step_in'] if 'n_step_in' in layer else None
-            kernel_regularizer = regularizers.l1(layer['kernel_regularizer']) if 'kernel_regularizer' in layer else None
-            recurrent_regularizer = regularizers.l1(
-                layer['recurrent_regularizer']) if 'recurrent_regularizer' in layer else None
-            bias_regularizer = regularizers.l1(layer['bias_regularizer']) if 'bias_regularizer' in layer else None
-
-            if layer['type'] == 'Dense':
-                if configs["factors"] and (configs["model"]["n_step_out"] == 1):
-                    self.model.add(Dense(self.n_features, activation=activation))
-                else:
-                    self.model.add(Dense(self.n_step_out, activation=activation))
-            if layer['type'] == 'LSTM':
-                self.model.add(LSTM(neurons,
-                                    input_shape=(n_step_in, self.n_features),
-                                    kernel_initializer="glorot_uniform",
-                                    activation=activation,
-                                    return_sequences=return_seq,
-                                    kernel_regularizer=kernel_regularizer,
-                                    recurrent_regularizer=recurrent_regularizer,
-                                    bias_regularizer=bias_regularizer))
-                self.n_step_in = n_step_in
-            if layer['type'] == 'GRU':
-                self.model.add(GRU(neurons,
-                                   input_shape=(n_step_in, self.n_features),
-                                   activation=activation,
-                                   return_sequences=return_seq,
-                                   kernel_regularizer=kernel_regularizer,
-                                   recurrent_regularizer=recurrent_regularizer,
-                                   bias_regularizer=bias_regularizer))
-                self.n_step_in = n_step_in
-            if layer['type'] == "Bidirectional":
-                self.model.add(Bidirectional(LSTM(neurons,
-                                                  activation=activation,
-                                                  return_sequences=return_seq,
-                                                  kernel_regularizer=kernel_regularizer,
-                                                  recurrent_regularizer=recurrent_regularizer,
-                                                  bias_regularizer=bias_regularizer),
-                                             input_shape=(n_step_in, self.n_features)))
-                self.n_step_in = n_step_in
-            if layer['type'] == 'Dropout':
-                self.model.add(Dropout(dropout_rate))
-
-            if layer['type'] == 'BatchNormalization':
-                self.model.add(BatchNormalization(scale=False))
-
-        self.model.compile(loss=configs['model']['loss'], optimizer=configs['model']['optimizer'])
-
-        print('[Model] Model Compiled')
-        timer.stop()
-
-    def fit(self, x_train, y_train, epochs, batch_size=36, verbose=1,
-            validation_split=0, save_dir=None, x_test=None, y_test=None,
+    def fit(self, factors=None, target=None,
+            epochs=30, batch_size=36, verbose=1,
+            scaler=None,
+            validation_split=0,
+            save_dir=None,
             callbacks=None):
         """
         Train model
-        :param x_train: (np.array)
-        :param y_train: (np.array)
+        :param scaler: sklearn scaler class
+        :param target: (np.array)
+        :param factors: (np.array)
         :param epochs: (int)
         :param batch_size: (int)
         :param verbose: (int) printing fitting process
         :param validation_split: (float) percent of train data used in validation
-        :param y_test: (np.array)
-        :param x_test: (np.array)
         :param callbacks: callbacks for EarlyStopping
         :param save_dir: (str) path to saving history plot
         :return: None
@@ -131,16 +70,26 @@ class Model:
 
         timer = Timer()
         timer.start()
+        assert target is not None
+        if scaler is not None:
+            self.scaler_target = scaler
+            self.scaler_factors = scaler
+            self.scale = True
+        else:
+            self.scale = False
+
+        X_train, y_train, X_test, y_test = self._data_process(X=factors, y=target)
+
         print('[Model] Training Started')
         print('[Model] %s epochs, %s batch size' % (epochs, batch_size))
 
-        if (x_test is None) or (y_test is None):
+        if (X_test is None) or (y_test is None):
             validation_data = None
             callbacks = None
         else:
-            validation_data = (x_test, y_test)
+            validation_data = (X_test, y_test)
 
-        history = self.model.fit(x_train,
+        history = self.model.fit(X_train,
                                  y_train,
                                  epochs=epochs,
                                  verbose=verbose,
@@ -161,25 +110,114 @@ class Model:
             plt.show()
             plt.close()
         timer.stop()
+        return self
 
-    def save(self, save_dir, name="_", folder_num=False):
+    def predict(self, factors=None, target=None, prediction_len=None):
         """
-        :param save_dir: str, path to save folder
-        :param name: str, name of saving model
-        :param folder_num: bool, prepend number of file in folder
+        Prediction with auto-set method based by params
+        :param data : np.array, the last sequence of true data
+        :return: np.array of predictions
+        """
+        assert target is not None
+        assert prediction_len is not None
+        self.prediction_len = prediction_len
+
+        if factors is None:
+            target = column_or_1d(target, warn=True)
+            _assert_all_finite(target)
+            assert len(target) == self.n_step_in
+        else:
+            factors, target = check_X_y(factors, target)
+            assert factors.shape[0] == self.n_step_in
+            assert factors.shape[1] == self.n_features - 1
+
+        if self.scale:
+            target_std = self._scaler_transform(target, target=True)
+
+            # Making input
+            if factors is not None:
+                factors_std = self._scaler_transform(factors, target=False)
+                input_df = np.hstack((factors_std, target_std))
+            else:
+                input_df = target_std
+        else:
+            if factors is not None:
+                input_df = np.hstack((factors, target.reshape(-1, 1)))
+            else:
+                input_df = target
+
+        # if multi-step prediction
+        if self.n_step_out != 1:  # if multi-step prediction
+            predicted = self._predict_multi_step(input_df)
+
+        # if point-by-point prediction
+        else:
+            predicted = self._predict_point_by_point(input_df, prediction_len=self.prediction_len)
+
+        if self.scale:
+            predicted = self._scaler_inverse_transform(predicted)
+        return predicted
+
+    def _build_model(self):
+        """
+        A method for building and compiling RNN models
         :return: None
         """
-        if folder_num:
-            pwd = os.getcwd()
-            os.chdir(save_dir)
-            num = str(len(os.listdir(os.getcwd())))
-            os.chdir(pwd)
-            save_name = os.path.join(save_dir, num + "_" + name)
-        else:
-            save_name = os.path.join(save_dir, name)
-        self.model.save(save_name)
+        timer = Timer()
+        timer.start()
 
-    def predict_point_by_point(self, data, prediction_len):
+        for layer in self.params['model']['layers']:
+            neurons = layer['neurons'] if 'neurons' in layer else None
+            dropout_rate = layer['rate'] if 'rate' in layer else None
+            activation = layer['activation'] if 'activation' in layer else None
+            return_seq = layer['return_sequences'] if 'return_sequences' in layer else None
+            kernel_regularizer = regularizers.l1(layer['kernel_regularizer']) if 'kernel_regularizer' in layer else None
+            recurrent_regularizer = regularizers.l1(layer['recurrent_regularizer']) if 'recurrent_regularizer' in layer else None
+            bias_regularizer = regularizers.l1(layer['bias_regularizer']) if 'bias_regularizer' in layer else None
+
+            if layer['type'] == 'Dense':
+                if self.n_features > 1 and (self.n_step_out == 1):
+                    self.model.add(Dense(self.n_features, activation=activation))
+                else:
+                    self.model.add(Dense(self.n_step_out, activation=activation))
+            if layer['type'] == 'LSTM':
+                self.model.add(LSTM(neurons,
+                                    input_shape=(self.n_step_in, self.n_features),
+                                    kernel_initializer="glorot_uniform",
+                                    activation=activation,
+                                    return_sequences=return_seq,
+                                    kernel_regularizer=kernel_regularizer,
+                                    recurrent_regularizer=recurrent_regularizer,
+                                    bias_regularizer=bias_regularizer))
+            if layer['type'] == 'GRU':
+                self.model.add(GRU(neurons,
+                                   input_shape=(self.n_step_in, self.n_features),
+                                   activation=activation,
+                                   return_sequences=return_seq,
+                                   kernel_regularizer=kernel_regularizer,
+                                   recurrent_regularizer=recurrent_regularizer,
+                                   bias_regularizer=bias_regularizer))
+            if layer['type'] == "Bidirectional":
+                self.model.add(Bidirectional(LSTM(neurons,
+                                                  activation=activation,
+                                                  return_sequences=return_seq,
+                                                  kernel_regularizer=kernel_regularizer,
+                                                  recurrent_regularizer=recurrent_regularizer,
+                                                  bias_regularizer=bias_regularizer),
+                                             input_shape=(self.n_step_in, self.n_features)))
+            if layer['type'] == 'Dropout':
+                self.model.add(Dropout(dropout_rate))
+
+            if layer['type'] == 'BatchNormalization':
+                self.model.add(BatchNormalization(scale=False))
+
+        self.model.compile(loss=self.loss,
+                           optimizer=self.optimizer)
+
+        print('[Model] Model Compiled')
+        timer.stop()
+
+    def _predict_point_by_point(self, data, prediction_len):
         """
         Predict only 1 step ahead each time of prediction_len
         :param data: np.array, the last sequence of true data
@@ -210,7 +248,7 @@ class Model:
         predicted = np.array(predicted)
         return predicted
 
-    def predict_multi_step(self, data):
+    def _predict_multi_step(self, data):
         """
         Predict n_step_out steps ahead. Use it if n_step_out != 1
         :param data : np.array, the last sequence of true data
@@ -219,24 +257,109 @@ class Model:
         var = np.reshape(data, (1, self.n_step_in, self.n_features))
         return self.model.predict(var)
 
-    def predict(self, data):
-        """
-        Prediction with auto-set method based by params
-        :param data : np.array, the last sequence of true data
-        :return: np.array of predictions
-        """
-        # if multi-step prediction
-        if self.n_step_out != 1:  # if multi-step prediction
-            predicted = self.predict_multi_step(data)
+    def _data_process(self, X=None, y=None):
+        assert y is not None
 
-        # if point-by-point prediction
+        if X is None:
+            y = column_or_1d(y, warn=True)
+            _assert_all_finite(y)
         else:
-            # without test set
-            if self.params["test_len"] == 0:
-                predicted = self.predict_point_by_point(data,
-                                                        prediction_len=self.params["prediction_len"])
-            # with test set
+            X, y = check_X_y(X, y)
+
+        if self.scale:
+            target_std = self._scaler_fit_transform(y, target=True)
+
+            # Making input
+            if X is not None:
+                factors_std = self._scaler_fit_transform(X, target=False)
+                input_df = np.hstack((factors_std, target_std))
             else:
-                predicted = self.predict_point_by_point(data,
-                                                        prediction_len=self.params["prediction_len"])
-        return predicted
+                input_df = target_std
+        else:
+            if X is not None:
+                input_df = np.hstack((X, y.reshape(-1, 1)))
+            else:
+                input_df = y
+
+        # Train/ Test split
+        train, test = train_test_split(input_df, test_len=self.test_len)
+
+        # split into samples
+        if X is not None and (self.n_step_out == 1):
+            ALL = True
+        else:
+            ALL = False
+
+        X_train, y_train = split_sequence(train,
+                                           n_steps_in=self.n_step_in,
+                                           n_steps_out=self.n_step_out,
+                                           all=ALL)
+
+        # reshape from [samples, timesteps] into [samples, timesteps, features]
+        X_train = X_train.reshape((X_train.shape[0], X_train.shape[1], input_df[0].size))
+
+        # prepare X_test and y_test
+        if self.test_len == 0:
+            X_test, y_test = None, None
+        else:
+            X_test, y_test = split_sequence(input_df, n_steps_in=self.n_step_in,
+                                                 n_steps_out=self.n_step_out, all=ALL)
+            X_test = X_test[-len(test):]
+            y_test = y_test[-len(test):]
+            X_test = X_test.reshape((X_test.shape[0], X_test.shape[1], self.n_features))
+
+        return X_train, y_train, X_test, y_test
+
+    def _scaler_fit(self, data, target=True):
+        """
+        scaler fitting
+        :param data: (np.array)  Sequence
+        :param target: (bool) if target: param= True, if factors: param= False
+        :return: None
+        """
+        if target:
+            self.scaler_target.fit(data.reshape(-1, 1))
+        else:
+            self.scaler_factors.fit(data)
+
+    def _scaler_fit_transform(self, data, target=True):
+        """
+        scaler fitting
+        :param data: (np.array) Sequence
+        :param target: (bool) if target: param= True, if factors: param= False
+        :return: np.array of scalled sequence
+        """
+        if target:
+            # print("[DataProcessor] Target scaler fitting")
+            return self.scaler_target.fit_transform(data.reshape(-1, 1))
+        else:
+            # print("[DataProcessor] Factors scaler fitting")
+            return self.scaler_factors.fit_transform(data)
+
+    def _scaler_transform(self, data, target=True):
+        """
+        scaler transform
+        :param data: (np.array) Sequence
+        :param target: (bool) if target: param= True, if factors: param= False
+        :return: np.array of scalled sequence
+        """
+        if target:
+            # print("[DataProcessor] Target scaler fitting")
+            return self.scaler_target.transform(data.reshape(-1, 1))
+        else:
+            # print("[DataProcessor] Factors scaler fitting")
+            return self.scaler_factors.transform(data)
+
+    def _scaler_inverse_transform(self, data, target=True):
+        """
+        scaler inverse transform
+        :param data: (np.array) Sequence
+        :param target: (bool)  if target: param= True, if factors: param= False
+        :return: np.array of unscalled sequence
+        """
+        if target:
+            # print("[DataProcessor] Target scaler inverse transform")
+            return self.scaler_target.inverse_transform(data.reshape(-1, 1)).flatten()
+        else:
+            # print("[DataProcessor] Factors scaler inverse transform")
+            return self.scaler_factors.inverse_transform(data)
