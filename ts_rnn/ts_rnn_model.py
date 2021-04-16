@@ -1,17 +1,17 @@
 #################################           Load libs                      #############################################
 import uuid
 import numpy as np
-from src.utils import Timer, save_image, split_sequence, train_test_split
 import matplotlib.pyplot as plt
 from tensorflow.keras import regularizers
 from tensorflow.keras.models import Sequential, load_model
-from tensorflow.keras.layers import Dense, Dropout, LSTM, GRU, Bidirectional, BatchNormalization
+from ts_rnn.utils import Timer, save_image, split_sequence, train_test_split
 from sklearn.utils.validation import check_X_y, column_or_1d, _assert_all_finite
+from tensorflow.keras.layers import Dense, Dropout, LSTM, GRU, Bidirectional, BatchNormalization
 
 
 #################################           Model Class                    #############################################
 
-class Model:
+class TS_RNN:
     """ A class for an building and inferencing an RNN models  """
 
     def __init__(self, configs, n_step_in, n_step_out, test_len, n_features=0, loss="mae", optimizer="adam"):
@@ -32,7 +32,6 @@ class Model:
         self.n_step_out = n_step_out
         self.n_features = n_features + 1
         self.params = configs
-        self.factors_names = "none"
         self.test_len = test_len
         self.loss = loss
         self.optimizer = optimizer
@@ -49,14 +48,14 @@ class Model:
         self.model = load_model(filepath)
 
     def fit(self, factors=None, target=None,
-            epochs=30, batch_size=36, verbose=1,
-            scaler=None,
+            epochs=30,
+            batch_size=36,
+            verbose=1,
             validation_split=0,
             save_dir=None,
             callbacks=None):
         """
         Train model
-        :param scaler: sklearn scaler class
         :param target: (np.array)
         :param factors: (np.array)
         :param epochs: (int)
@@ -65,20 +64,14 @@ class Model:
         :param validation_split: (float) percent of train data used in validation
         :param callbacks: callbacks for EarlyStopping
         :param save_dir: (str) path to saving history plot
-        :return: None
+        :return: self
         """
 
         timer = Timer()
         timer.start()
         assert target is not None
-        if scaler is not None:
-            self.scaler_target = scaler
-            self.scaler_factors = scaler
-            self.scale = True
-        else:
-            self.scale = False
 
-        X_train, y_train, X_test, y_test = self._data_process(X=factors, y=target)
+        X_train, y_train, X_test, y_test = self._data_process(factors=factors, target=target)
 
         print('[Model] Training Started')
         print('[Model] %s epochs, %s batch size' % (epochs, batch_size))
@@ -115,9 +108,13 @@ class Model:
     def predict(self, factors=None, target=None, prediction_len=None):
         """
         Prediction with auto-set method based by params
-        :param data : np.array, the last sequence of true data
+        :param factors: np.array
+        :param target: np.array
+        :param prediction_len: int
         :return: np.array of predictions
         """
+
+        # Some tests
         assert target is not None
         assert prediction_len is not None
         self.prediction_len = prediction_len
@@ -131,20 +128,10 @@ class Model:
             assert factors.shape[0] == self.n_step_in
             assert factors.shape[1] == self.n_features - 1
 
-        if self.scale:
-            target_std = self._scaler_transform(target, target=True)
-
-            # Making input
-            if factors is not None:
-                factors_std = self._scaler_transform(factors, target=False)
-                input_df = np.hstack((factors_std, target_std))
-            else:
-                input_df = target_std
+        if factors is not None:
+            input_df = np.hstack((factors, target.reshape(-1, 1)))
         else:
-            if factors is not None:
-                input_df = np.hstack((factors, target.reshape(-1, 1)))
-            else:
-                input_df = target
+            input_df = target.reshape(-1, 1)
 
         # if multi-step prediction
         if self.n_step_out != 1:  # if multi-step prediction
@@ -154,8 +141,6 @@ class Model:
         else:
             predicted = self._predict_point_by_point(input_df, prediction_len=self.prediction_len)
 
-        if self.scale:
-            predicted = self._scaler_inverse_transform(predicted)
         return predicted
 
     def _build_model(self):
@@ -214,6 +199,8 @@ class Model:
         self.model.compile(loss=self.loss,
                            optimizer=self.optimizer)
 
+        assert isinstance(self.model.layers[-1], Dense), "last block need to be Dense"
+
         print('[Model] Model Compiled')
         timer.stop()
 
@@ -257,35 +244,32 @@ class Model:
         var = np.reshape(data, (1, self.n_step_in, self.n_features))
         return self.model.predict(var)
 
-    def _data_process(self, X=None, y=None):
-        assert y is not None
+    def _data_process(self, factors=None, target=None):
+        """
+        Process input series
+        :param X: np.array, factors
+        :param y: np.array,target
+        """
 
-        if X is None:
-            y = column_or_1d(y, warn=True)
-            _assert_all_finite(y)
+        # Some tests
+        assert target is not None
+
+        if factors is None:
+            y = column_or_1d(target, warn=True)
+            _assert_all_finite(target)
         else:
-            X, y = check_X_y(X, y)
+            factors, target = check_X_y(factors, target)
 
-        if self.scale:
-            target_std = self._scaler_fit_transform(y, target=True)
-
-            # Making input
-            if X is not None:
-                factors_std = self._scaler_fit_transform(X, target=False)
-                input_df = np.hstack((factors_std, target_std))
-            else:
-                input_df = target_std
+        if factors is not None:
+            input_df = np.hstack((factors, target.reshape(-1, 1)))
         else:
-            if X is not None:
-                input_df = np.hstack((X, y.reshape(-1, 1)))
-            else:
-                input_df = y
+            input_df = target.reshape(-1, 1)
 
         # Train/ Test split
         train, test = train_test_split(input_df, test_len=self.test_len)
 
         # split into samples
-        if X is not None and (self.n_step_out == 1):
+        if factors is not None and (self.n_step_out == 1):
             ALL = True
         else:
             ALL = False
@@ -309,57 +293,3 @@ class Model:
             X_test = X_test.reshape((X_test.shape[0], X_test.shape[1], self.n_features))
 
         return X_train, y_train, X_test, y_test
-
-    def _scaler_fit(self, data, target=True):
-        """
-        scaler fitting
-        :param data: (np.array)  Sequence
-        :param target: (bool) if target: param= True, if factors: param= False
-        :return: None
-        """
-        if target:
-            self.scaler_target.fit(data.reshape(-1, 1))
-        else:
-            self.scaler_factors.fit(data)
-
-    def _scaler_fit_transform(self, data, target=True):
-        """
-        scaler fitting
-        :param data: (np.array) Sequence
-        :param target: (bool) if target: param= True, if factors: param= False
-        :return: np.array of scalled sequence
-        """
-        if target:
-            # print("[DataProcessor] Target scaler fitting")
-            return self.scaler_target.fit_transform(data.reshape(-1, 1))
-        else:
-            # print("[DataProcessor] Factors scaler fitting")
-            return self.scaler_factors.fit_transform(data)
-
-    def _scaler_transform(self, data, target=True):
-        """
-        scaler transform
-        :param data: (np.array) Sequence
-        :param target: (bool) if target: param= True, if factors: param= False
-        :return: np.array of scalled sequence
-        """
-        if target:
-            # print("[DataProcessor] Target scaler fitting")
-            return self.scaler_target.transform(data.reshape(-1, 1))
-        else:
-            # print("[DataProcessor] Factors scaler fitting")
-            return self.scaler_factors.transform(data)
-
-    def _scaler_inverse_transform(self, data, target=True):
-        """
-        scaler inverse transform
-        :param data: (np.array) Sequence
-        :param target: (bool)  if target: param= True, if factors: param= False
-        :return: np.array of unscalled sequence
-        """
-        if target:
-            # print("[DataProcessor] Target scaler inverse transform")
-            return self.scaler_target.inverse_transform(data.reshape(-1, 1)).flatten()
-        else:
-            # print("[DataProcessor] Factors scaler inverse transform")
-            return self.scaler_factors.inverse_transform(data)

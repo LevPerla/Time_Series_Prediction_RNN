@@ -1,8 +1,9 @@
 **/.idea
-/src/model/grid_search.py
-/src/model/validation.py
+**/ts_rnn/model/grid_search.py
+**/ts_rnn/model/validation.py
 **/reports/
 /test.py
+/ts_rnn/model
 
 # Byte-compiled / optimized / DLL files
 **/__pycache__/
