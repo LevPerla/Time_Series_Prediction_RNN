@@ -18,11 +18,18 @@ python setup.py install
 ```
 ## Example
 [Example](https://github.com/LevPerla/Time_Series_Prediction_RNN/blob/master/notebooks/Example.ipynb)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/LevPerla/Time_Series_Prediction_RNN/blob/master/notebooks/Example.ipynb)
+
 
 ## Documentation
 The library includes one main module ts_rnn: 
 
 ### Getting started
+To import TS_RNN model run
+```python
+from ts_rnn.ts_rnn_model import TS_RNN
+```
+
 
 First of all, we need to set architecture of RNN in config in the way like this:
 ```python
