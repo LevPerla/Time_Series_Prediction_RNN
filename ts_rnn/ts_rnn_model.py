@@ -35,6 +35,8 @@ class TS_RNN:
         self.test_len = test_len
         self.loss = loss
         self.optimizer = optimizer
+        self.last_known_target = None
+        self.last_known_factors = None
 
         self._build_model()
 
@@ -70,6 +72,10 @@ class TS_RNN:
         timer = Timer()
         timer.start()
         assert target is not None
+
+        self.last_known_target = target[-self.n_step_in:]
+        if factors is not None:
+            self.last_known_factors = factors[-self.n_step_in:, :]
 
         X_train, y_train, X_test, y_test = self._data_process(factors=factors, target=target)
 
@@ -287,9 +293,15 @@ class TS_RNN:
             X_test, y_test = None, None
         else:
             X_test, y_test = split_sequence(input_df, n_steps_in=self.n_step_in,
-                                                 n_steps_out=self.n_step_out, all=ALL)
+                                            n_steps_out=self.n_step_out, all=ALL)
             X_test = X_test[-len(test):]
             y_test = y_test[-len(test):]
             X_test = X_test.reshape((X_test.shape[0], X_test.shape[1], self.n_features))
 
         return X_train, y_train, X_test, y_test
+
+    def forecast(self, prediction_len):
+        predicted = self.predict(factors=self.last_known_factors,
+                                 target=self.last_known_target,
+                                 prediction_len=prediction_len)
+        return predicted
