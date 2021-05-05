@@ -49,7 +49,7 @@ class TS_RNN:
         print('[Model] Loading model from file %s' % filepath)
         self.model = load_model(filepath)
 
-    def fit(self, factors=None, target=None,
+    def fit(self, target=None, factors=None,
             epochs=30,
             batch_size=36,
             verbose=1,
@@ -111,7 +111,7 @@ class TS_RNN:
         timer.stop()
         return self
 
-    def predict(self, factors=None, target=None, prediction_len=None):
+    def predict(self, target=None, factors=None, prediction_len=None):
         """
         Prediction with auto-set method based by params
         :param factors: np.array
