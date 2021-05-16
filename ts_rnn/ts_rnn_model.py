@@ -162,10 +162,10 @@ class TS_RNN:
             input_df = target.reshape(-1, 1)
 
         # if multi-step prediction
-        if self.n_step_out != 1 and not self.n_models:  # if multi-step prediction
+        if self.n_step_out != 1 and (not self.n_models):  # if multi-step prediction
             predicted = self._predict_multi_step(input_df)
 
-        if self.n_step_out != 1 and self.n_models:  # if n_models prediction
+        elif self.n_step_out != 1 and self.n_models:  # if n_models prediction
             predicted = self._predict_n_models(input_df)
 
         # if point-by-point prediction
