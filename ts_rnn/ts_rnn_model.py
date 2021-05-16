@@ -3,7 +3,7 @@ import uuid
 import numpy as np
 import matplotlib.pyplot as plt
 from tensorflow.keras import regularizers
-from tensorflow.keras.models import Sequential, load_model
+from tensorflow.keras.models import Sequential, load_model, clone_model
 from ts_rnn.utils import Timer, save_image, split_sequence, train_test_split
 from sklearn.utils.validation import check_X_y, column_or_1d, _assert_all_finite
 from tensorflow.keras.layers import Dense, Dropout, LSTM, GRU, Bidirectional, BatchNormalization
@@ -14,7 +14,8 @@ from tensorflow.keras.layers import Dense, Dropout, LSTM, GRU, Bidirectional, Ba
 class TS_RNN:
     """ A class for an building and inferencing an RNN models  """
 
-    def __init__(self, configs, n_step_in, n_step_out, test_len, n_features=0, loss="mae", optimizer="adam"):
+    def __init__(self, configs, n_step_in, n_step_out, test_len,
+                 n_features=0, loss="mae", optimizer="adam", n_models=False):
         """
         Attributes:
         model (Keras.Sequential): Keras model
@@ -26,7 +27,7 @@ class TS_RNN:
         last_obs_index (str): date index of last observation showed to model
         score (float): five decades accuracy
         """
-        self.model = Sequential()
+        self.model = None
         self.id = str(uuid.uuid1())
         self.n_step_in = n_step_in
         self.n_step_out = n_step_out
@@ -37,8 +38,22 @@ class TS_RNN:
         self.optimizer = optimizer
         self.last_known_target = None
         self.last_known_factors = None
+        self.n_models = n_models
 
-        self._build_model()
+        if self.n_models:
+            n_step_out = self.n_step_out
+            self.n_step_out = 1
+            self._build_model()
+            self.n_step_out = n_step_out
+
+            for _ in range(self.n_step_out):
+                model = self._build_model()
+                if self.model is None:
+                    self.model = [model]
+                else:
+                    self.model.append(model)
+        else:
+            self.model = self._build_model()
 
     def load_model(self, filepath):
         """
@@ -69,46 +84,53 @@ class TS_RNN:
         :return: self
         """
 
-        timer = Timer()
-        timer.start()
         assert target is not None
 
         self.last_known_target = target[-self.n_step_in:]
         if factors is not None:
             self.last_known_factors = factors[-self.n_step_in:, :]
 
-        X_train, y_train, X_test, y_test = self._data_process(factors=factors, target=target)
+        for model_id in range(self.n_step_out):
+            if not self.n_models:
+                model_id = None
+            X_train, y_train, X_test, y_test = self._data_process(factors=factors, target=target, _i_model=model_id)
 
-        print('[Model] Training Started')
-        print('[Model] %s epochs, %s batch size' % (epochs, batch_size))
+            if verbose != 0:
+                print('[Model] Training Started')
+                print('[Model] %s epochs, %s batch size' % (epochs, batch_size))
 
-        if (X_test is None) or (y_test is None):
-            validation_data = None
-            callbacks = None
-        else:
-            validation_data = (X_test, y_test)
+            if (X_test is None) or (y_test is None):
+                validation_data = None
+                callbacks = None
+            else:
+                validation_data = (X_test, y_test)
 
-        history = self.model.fit(X_train,
-                                 y_train,
-                                 epochs=epochs,
-                                 verbose=verbose,
-                                 validation_split=validation_split,
-                                 validation_data=validation_data,
-                                 batch_size=batch_size,
-                                 callbacks=callbacks,
-                                 shuffle=False
-                                 )
+            if not self.n_models:
+                model_to_train = self.model
+            else:
+                model_to_train = self.model[model_id]
+            history = model_to_train.fit(X_train,
+                                         y_train,
+                                         epochs=epochs,
+                                         verbose=verbose,
+                                         validation_split=validation_split,
+                                         validation_data=validation_data,
+                                         batch_size=batch_size,
+                                         callbacks=callbacks,
+                                         shuffle=False
+                                         )
 
-        if save_dir is not None and ((validation_split != 0) or (validation_data is not None)):
-            plt.subplot(212)
-            plt.plot(history.history["loss"], label="Train")
-            plt.plot(history.history["val_loss"], label="Validation")
-            plt.legend(loc="best")
-            plt.tight_layout()
-            save_image(save_dir, "train_val_loss_plot")
-            plt.show()
-            plt.close()
-        timer.stop()
+            if save_dir is not None and ((validation_split != 0) or (validation_data is not None)):
+                plt.subplot(212)
+                plt.plot(history.history["loss"], label="Train")
+                plt.plot(history.history["val_loss"], label="Validation")
+                plt.legend(loc="best")
+                plt.tight_layout()
+                save_image(save_dir, "train_val_loss_plot")
+                plt.show()
+                plt.close()
+            if not self.n_models:
+                break
         return self
 
     def predict(self, target=None, factors=None, prediction_len=None):
@@ -140,8 +162,11 @@ class TS_RNN:
             input_df = target.reshape(-1, 1)
 
         # if multi-step prediction
-        if self.n_step_out != 1:  # if multi-step prediction
+        if self.n_step_out != 1 and not self.n_models:  # if multi-step prediction
             predicted = self._predict_multi_step(input_df)
+
+        if self.n_step_out != 1 and self.n_models:  # if n_models prediction
+            predicted = self._predict_n_models(input_df)
 
         # if point-by-point prediction
         else:
@@ -157,57 +182,60 @@ class TS_RNN:
         timer = Timer()
         timer.start()
 
+        model = Sequential()
+
         for layer in self.params['model']['layers']:
             neurons = layer['neurons'] if 'neurons' in layer else None
             dropout_rate = layer['rate'] if 'rate' in layer else None
             activation = layer['activation'] if 'activation' in layer else None
             return_seq = layer['return_sequences'] if 'return_sequences' in layer else None
             kernel_regularizer = regularizers.l1(layer['kernel_regularizer']) if 'kernel_regularizer' in layer else None
-            recurrent_regularizer = regularizers.l1(layer['recurrent_regularizer']) if 'recurrent_regularizer' in layer else None
+            recurrent_regularizer = regularizers.l1(
+                layer['recurrent_regularizer']) if 'recurrent_regularizer' in layer else None
             bias_regularizer = regularizers.l1(layer['bias_regularizer']) if 'bias_regularizer' in layer else None
 
             if layer['type'] == 'Dense':
                 if self.n_features > 1 and (self.n_step_out == 1):
-                    self.model.add(Dense(self.n_features, activation=activation))
+                    model.add(Dense(self.n_features, activation=activation))
                 else:
-                    self.model.add(Dense(self.n_step_out, activation=activation))
+                    model.add(Dense(self.n_step_out, activation=activation))
             if layer['type'] == 'LSTM':
-                self.model.add(LSTM(neurons,
-                                    input_shape=(self.n_step_in, self.n_features),
-                                    kernel_initializer="glorot_uniform",
-                                    activation=activation,
-                                    return_sequences=return_seq,
-                                    kernel_regularizer=kernel_regularizer,
-                                    recurrent_regularizer=recurrent_regularizer,
-                                    bias_regularizer=bias_regularizer))
+                model.add(LSTM(neurons,
+                               input_shape=(self.n_step_in, self.n_features),
+                               kernel_initializer="glorot_uniform",
+                               activation=activation,
+                               return_sequences=return_seq,
+                               kernel_regularizer=kernel_regularizer,
+                               recurrent_regularizer=recurrent_regularizer,
+                               bias_regularizer=bias_regularizer))
             if layer['type'] == 'GRU':
-                self.model.add(GRU(neurons,
-                                   input_shape=(self.n_step_in, self.n_features),
-                                   activation=activation,
-                                   return_sequences=return_seq,
-                                   kernel_regularizer=kernel_regularizer,
-                                   recurrent_regularizer=recurrent_regularizer,
-                                   bias_regularizer=bias_regularizer))
+                model.add(GRU(neurons,
+                              input_shape=(self.n_step_in, self.n_features),
+                              activation=activation,
+                              return_sequences=return_seq,
+                              kernel_regularizer=kernel_regularizer,
+                              recurrent_regularizer=recurrent_regularizer,
+                              bias_regularizer=bias_regularizer))
             if layer['type'] == "Bidirectional":
-                self.model.add(Bidirectional(LSTM(neurons,
-                                                  activation=activation,
-                                                  return_sequences=return_seq,
-                                                  kernel_regularizer=kernel_regularizer,
-                                                  recurrent_regularizer=recurrent_regularizer,
-                                                  bias_regularizer=bias_regularizer),
-                                             input_shape=(self.n_step_in, self.n_features)))
+                model.add(Bidirectional(LSTM(neurons,
+                                             activation=activation,
+                                             return_sequences=return_seq,
+                                             kernel_regularizer=kernel_regularizer,
+                                             recurrent_regularizer=recurrent_regularizer,
+                                             bias_regularizer=bias_regularizer),
+                                        input_shape=(self.n_step_in, self.n_features)))
             if layer['type'] == 'Dropout':
-                self.model.add(Dropout(dropout_rate))
+                model.add(Dropout(dropout_rate))
 
             if layer['type'] == 'BatchNormalization':
-                self.model.add(BatchNormalization(scale=False))
+                model.add(BatchNormalization(scale=False))
 
-        self.model.compile(loss=self.loss,
-                           optimizer=self.optimizer)
+        model.compile(loss=self.loss, optimizer=self.optimizer)
 
-        assert isinstance(self.model.layers[-1], Dense), "last block need to be Dense"
+        assert isinstance(model.layers[-1], Dense), "last block need to be Dense"
 
         print('[Model] Model Compiled')
+        return model
         timer.stop()
 
     def _predict_point_by_point(self, data, prediction_len):
@@ -220,12 +248,8 @@ class TS_RNN:
         # print('[Model] Predicting Point-by-Point')
 
         # Check output length
-        if self.n_step_out != 1:
-            print("Error: Output length needs to be 1. Use method predict_multi_step")
-            return None
-        if (prediction_len == 0) or (prediction_len is None):
-            print("Error: prediction_len is 0")
-            return None
+        assert self.n_step_out == 1, "Error: Output length needs to be 1. Use method predict_multi_step"
+        assert (prediction_len != 0) or (prediction_len is not None), "Error: prediction_len is 0"
 
         predicted = []
         past_targets = data
@@ -250,7 +274,27 @@ class TS_RNN:
         var = np.reshape(data, (1, self.n_step_in, self.n_features))
         return self.model.predict(var)
 
-    def _data_process(self, factors=None, target=None):
+    def _predict_n_models(self, data):
+        """
+        Predict only 1 step ahead by one model fot each value in prediction_len
+        :param data: np.array, the last sequence of true data
+        :return: np.array of predictions
+        """
+
+        predicted = []
+        var = np.reshape(data, (1, self.n_step_in, self.n_features))
+
+        assert len(self.model) == self.n_step_out
+
+        for i in range(len(self.model)):
+            # Prediction RNN for i step
+            prediction_point = self.model[i].predict(var)
+            predicted.append(prediction_point[0][-1])
+            # Preparation of sequence
+        predicted = np.array(predicted)
+        return predicted
+
+    def _data_process(self, factors=None, target=None, _i_model=None):
         """
         Process input series
         :param X: np.array, factors
@@ -281,9 +325,10 @@ class TS_RNN:
             ALL = False
 
         X_train, y_train = split_sequence(train,
-                                           n_steps_in=self.n_step_in,
-                                           n_steps_out=self.n_step_out,
-                                           all=ALL)
+                                          n_steps_in=self.n_step_in,
+                                          n_steps_out=self.n_step_out,
+                                          _all=ALL,
+                                          _i_model=_i_model)
 
         # reshape from [samples, timesteps] into [samples, timesteps, features]
         X_train = X_train.reshape((X_train.shape[0], X_train.shape[1], input_df[0].size))
@@ -293,7 +338,7 @@ class TS_RNN:
             X_test, y_test = None, None
         else:
             X_test, y_test = split_sequence(input_df, n_steps_in=self.n_step_in,
-                                            n_steps_out=self.n_step_out, all=ALL)
+                                            n_steps_out=self.n_step_out, _all=ALL, _i_model=_i_model)
             X_test = X_test[-len(test):]
             y_test = y_test[-len(test):]
             X_test = X_test.reshape((X_test.shape[0], X_test.shape[1], self.n_features))

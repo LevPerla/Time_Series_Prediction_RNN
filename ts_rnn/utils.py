@@ -170,13 +170,14 @@ def config_generator(new_config, config):
 
 
 #################################          split_sequence                  #############################################
-def split_sequence(data, n_steps_in, n_steps_out, all=False):
+def split_sequence(data, n_steps_in, n_steps_out, _all=False, _i_model=None):
     """
     Split sequence to X and y
     :param data: (np.ndarray) Sequences to split
     :param n_steps_in: (int) input size of NN
     :param n_steps_out: (int) output size of NN
-    :param all: (bool)  output with factors (used in point-by-point prediction with factors)
+    :param _all: (bool)  output with factors (used in point-by-point prediction with factors)
+    :param _i_model: (bool)  sample of out (used in n_models prediction)
     :return: np.array, np.array: X sequence, y sequence
     """
     X, y = list(), list()
@@ -191,14 +192,19 @@ def split_sequence(data, n_steps_in, n_steps_out, all=False):
             break
 
         # gather input and output parts of the pattern
-        if all:
+        if _all:
             seq_x, seq_y = data[i:end_ix - 1, :], data[end_ix - 1: out_end_ix, :].flatten()
         else:
             seq_x, seq_y = data[i:end_ix - 1, :], data[end_ix - 1: out_end_ix, -1]
         X.append(seq_x)
         y.append(seq_y)
 
-    return np.array(X), np.array(y)
+    X = np.array(X)
+    y = np.array(y)
+    if _i_model is not None:
+        y = y[:, _i_model].reshape(-1, 1)
+
+    return X, y
 
 
 #################################          train_test_split                #############################################
