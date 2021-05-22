@@ -232,7 +232,7 @@ class TS_RNN:
 
         assert isinstance(model.layers[-1], Dense), "last block need to be Dense"
 
-        print('[Model] Model Compiled')
+        # print('[Model] Model Compiled')
         return model
         timer.stop()
 
