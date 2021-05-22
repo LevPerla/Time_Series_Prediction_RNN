@@ -121,7 +121,7 @@ configs ={"model": {
 model = TS_RNN(configs=configs,            # configs with model architecture
               n_step_in=12,                # length of the input vector
               n_step_out=len(y_test),      # length of the output vector
-              test_len=len(y_test),        # number of data that will be replaced from train data;
+              test_len=len(y_test),        # number of data that will be removed from train data;
               loss="mae",                  # Keras loss
               optimizer="adam",            # Keras optimizer
               n_features=X_train.shape[1]  # also you need to define this if use factors
