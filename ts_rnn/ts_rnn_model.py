@@ -41,13 +41,11 @@ class TS_RNN:
         self.n_models = n_models
 
         if self.n_models:
-            n_step_out = self.n_step_out
-            self.n_step_out = 1
-            self._build_model()
-            self.n_step_out = n_step_out
-
             for _ in range(self.n_step_out):
+                n_step_out = self.n_step_out
+                self.n_step_out = 1
                 model = self._build_model()
+                self.n_step_out = n_step_out
                 if self.model is None:
                     self.model = [model]
                 else:
@@ -350,3 +348,35 @@ class TS_RNN:
                                  target=self.last_known_target,
                                  prediction_len=prediction_len)
         return predicted
+
+
+if __name__ == "__main__":
+    configs = {"model": {
+        "layers": [
+            {
+                "type": "LSTM",
+                "neurons": 64,
+                "return_sequences": False,
+                "activation": "linear",
+            },
+            {
+                "type": "Dropout",
+                "rate": 0.2
+            },
+            {
+                "type": "Dense",
+                "activation": "linear"
+            }
+        ]
+    }}
+
+    n_models_model = TS_RNN(configs=configs,
+                            n_step_in=12,
+                            n_step_out=3,
+                            test_len=12,
+                            loss="mae",
+                            optimizer="adam",
+                            n_models=True
+                            )
+    print(n_models_model.model)
+    n_models_model.model[0].summary()
