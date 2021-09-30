@@ -77,7 +77,7 @@ model = TS_RNN(rnn_arch=rnn_arch,           # dict with model architecture
                n_step_in=12,                # length of the input vector
                horizon=TEST_LEN,            # length of prediction horizon
                test_len=TEST_LEN,           # number of data that will be dropped from train data
-               strategy="MiMo",             # Prediction strategy
+               strategy="MiMo",             # Prediction strategy from ["Direct", "Recursive", "MiMo"]
                loss="mae",                  # Keras loss
                optimizer="adam",            # Keras optimizer
                n_features=X_train.shape[1]  # also you need to define this if use factors
