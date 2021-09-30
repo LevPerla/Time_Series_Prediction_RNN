@@ -21,7 +21,7 @@ setup(
     license="MIT",
     python_requires=">=3.7",
     install_requires=requirements,
-    keywords="pandas data-science data-analysis python jupyter ipython",
+    keywords="keras data-science data-analysis python jupyter ipython",
     long_description=long_description,
     long_description_content_type="text/markdown",
 )

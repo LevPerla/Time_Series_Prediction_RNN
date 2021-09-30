@@ -3,7 +3,12 @@
 **/ts_rnn/model/validation.py
 **/reports/
 /test.py
-/ts_rnn/model
+/test_1.py
+/model
+/notebooks/Compare_prediction_methods-cif-dataset_SD.ipynb
+/notebooks/Compare_prediction_methods-cif-dataset.ipynb
+/notebooks/Compare_prediction_methods-запуск_2.ipynb
+/notebooks/Compare_prediction_methods.ipynb
 
 # Byte-compiled / optimized / DLL files
 **/__pycache__/
@@ -83,7 +88,7 @@ docs/_build/
 target/
 
 # Jupyter Notebook
-.ipynb_checkpoints
+**/.ipynb_checkpoints
 
 # IPython
 profile_default/

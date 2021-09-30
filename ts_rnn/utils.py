@@ -4,21 +4,23 @@ from sklearn.metrics import mean_squared_error, mean_absolute_error
 import matplotlib.pyplot as plt
 from itertools import product
 import datetime as dt
+import time
 import numpy as np
 import random
 import os
 
-#################################           Timer class                    #############################################
-class Timer():
-    def __init__(self):
-        self.start_dt = None
 
-    def start(self):
-        self.start_dt = dt.datetime.now()
+#################################           timeit                         #############################################
+def timeit(f):
+    def timed(*args, **kwargs):
+        ts = time.time()
+        result = f(*args, **kwargs)
+        te = time.time()
+        print(f"{f.__name__}: {round(te - ts, 2)} sec")
+        return result
 
-    def stop(self):
-        end_dt = dt.datetime.now()
-        print('Time taken: %s' % (end_dt - self.start_dt))
+    return timed
+
 
 #################################          Metrics calculation             #############################################
 def metrics_eval(y_true, y_pred, print_result=True, save_dir=None):
@@ -170,37 +172,38 @@ def config_generator(new_config, config):
 
 
 #################################          split_sequence                  #############################################
-def split_sequence(data, n_steps_in, n_steps_out, _all=False, _i_model=None):
+def split_sequence(data, n_steps_in, n_steps_out, _full_out=False, _i_model=None):
     """
     Split sequence to X and y
     :param data: (np.ndarray) Sequences to split
     :param n_steps_in: (int) input size of NN
     :param n_steps_out: (int) output size of NN
-    :param _all: (bool)  output with factors (used in point-by-point prediction with factors)
+    :param _full_out: (bool)  output with factors (used in point-by-point prediction with factors)
     :param _i_model: (bool)  sample of out (used in n_models prediction)
     :return: np.array, np.array: X sequence, y sequence
     """
     X, y = list(), list()
     for i in range(len(data)):
         # find the end of this pattern
-        end_ix = i + n_steps_in + 1
+        end_ix = i + n_steps_in
 
-        out_end_ix = end_ix + n_steps_out - 1
+        out_end_ix = end_ix + n_steps_out
 
         # check if we are beyond the sequence
         if out_end_ix > len(data):
             break
 
         # gather input and output parts of the pattern
-        if _all:
-            seq_x, seq_y = data[i:end_ix - 1, :], data[end_ix - 1: out_end_ix, :].flatten()
+        if _full_out:
+            seq_x, seq_y = data[i:end_ix, :], data[end_ix: out_end_ix, :].flatten()
         else:
-            seq_x, seq_y = data[i:end_ix - 1, :], data[end_ix - 1: out_end_ix, -1]
+            seq_x, seq_y = data[i:end_ix, :], data[end_ix: out_end_ix, -1]
         X.append(seq_x)
         y.append(seq_y)
 
     X = np.array(X)
     y = np.array(y)
+
     if _i_model is not None:
         y = y[:, _i_model].reshape(-1, 1)
 
@@ -219,3 +222,15 @@ def train_test_split(data, test_len):
     if test_len == 0:
         return data, None
     return data[:-test_len], data[-test_len:]
+
+
+def history_plot(history, save_dir=None):
+    plt.subplot(212)
+    plt.plot(history.history["loss"], label="Train")
+    plt.plot(history.history["val_loss"], label="Validation")
+    plt.legend(loc="best")
+    plt.tight_layout()
+    if save_dir is not None:
+        save_image(save_dir, "train_val_loss_plot")
+    plt.show()
+    plt.close()
