@@ -3,7 +3,7 @@
 from sklearn.metrics import mean_squared_error, mean_absolute_error
 import matplotlib.pyplot as plt
 from itertools import product
-import datetime as dt
+from ts_rnn.logger import logger
 import time
 import numpy as np
 import random
@@ -16,7 +16,7 @@ def timeit(f):
         ts = time.time()
         result = f(*args, **kwargs)
         te = time.time()
-        print(f"{f.__name__}: {round(te - ts, 2)} sec")
+        logger.info(f"[Timing] {f.__name__} takes: {round(te - ts, 2)} sec")
         return result
 
     return timed
@@ -66,22 +66,28 @@ def metrics_eval(y_true, y_pred, print_result=True, save_dir=None):
 
     return mae, mse, rmse, MAPE, SMAPE
 
+
 #################################          Saving images                   #############################################
 def save_image(save_dir, name, fmt="png"):
     pwd = os.getcwd()
     os.chdir(save_dir)
-    plt.savefig('{}.{}'.format(name, fmt), fmt='png')
+    plt.savefig('{}.{}'.format(name, fmt))
     os.chdir(pwd)
 
+
 #################################          Plot train/test/predicted       #############################################
-def train_test_pred_plot(train, test, predicted, save_dir=None):
+def train_test_pred_plot(train, test, predicted, save_dir=None, title=None, show=True):
     # train_test_pred_plot
     plt.plot(range(len(train)), train, label="Train")
     plt.plot(range(len(train), len(train) + len(test)), test, label="Test")
     plt.plot(range(len(train), len(train) + len(predicted)), predicted, label="Pred")
+    if title:
+        plt.title("title")
     plt.legend()
-    if save_dir is not None:
+    if save_dir is not None and not show:
         save_image(save_dir, "train_test_predicted")
+        plt.close()
+    elif save_dir is not None and show:
         plt.show()
     else:
         plt.show()
@@ -89,12 +95,16 @@ def train_test_pred_plot(train, test, predicted, save_dir=None):
     # test_pred_plot
     plt.plot(range(len(train), len(train) + len(test)), test, label="Test")
     plt.plot(range(len(train), len(train) + len(predicted)), predicted, label="Pred")
+    if title:
+        plt.title("title")
     plt.legend()
     if save_dir is not None:
         save_image(save_dir, "test_predicted")
         plt.close()
-    else:
+    if show:
         plt.show()
+
+
 
 #################################          Satting seed                    #############################################
 def set_seed(seed_value):
@@ -116,6 +126,7 @@ def set_seed(seed_value):
     # session_conf = tf.compat.v1.ConfigProto(intra_op_parallelism_threads=1, inter_op_parallelism_threads=1)
     # sess = tf.compat.v1.Session(graph=tf.compat.v1.get_default_graph(), config=session_conf)
     # tf.compat.v1.keras.backend.set_session(sess)
+
 
 #################################          config_generator                #############################################
 def config_generator(new_config, config):
@@ -141,7 +152,6 @@ def config_generator(new_config, config):
 
     read_new_dict(new_config, ())
 
-
     for full_key, value in list(dict_to_list.items()):
         temp_config = config
 
@@ -158,7 +168,6 @@ def config_generator(new_config, config):
         else:
             temp_config[full_key[-1]] = value
             del dict_to_list[full_key]
-
 
     for values in product(*dict_to_list.values()):
         for ind, full_key in enumerate(dict_to_list):
@@ -224,13 +233,17 @@ def train_test_split(data, test_len):
     return data[:-test_len], data[-test_len:]
 
 
-def history_plot(history, save_dir=None):
+def history_plot(history, save_dir=None, show=True):
     plt.subplot(212)
     plt.plot(history.history["loss"], label="Train")
     plt.plot(history.history["val_loss"], label="Validation")
     plt.legend(loc="best")
     plt.tight_layout()
-    if save_dir is not None:
+    if save_dir is not None and not show:
         save_image(save_dir, "train_val_loss_plot")
-    plt.show()
+        plt.close()
+    elif save_dir is not None and show:
+        plt.show()
+    else:
+        plt.show()
     plt.close()

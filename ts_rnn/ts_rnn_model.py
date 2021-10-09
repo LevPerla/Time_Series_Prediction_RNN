@@ -1,6 +1,9 @@
 # Load libs
 import uuid
+import os
 import numpy as np
+import logging
+from ts_rnn.logger import logger
 from tensorflow.keras.models import Sequential, load_model
 from ts_rnn.utils import split_sequence, train_test_split, history_plot, timeit
 from sklearn.utils.validation import check_X_y, column_or_1d, _assert_all_finite
@@ -19,7 +22,8 @@ class TS_RNN:
                  n_step_out=1,
                  n_features=0,
                  loss="mae",
-                 optimizer="adam"):
+                 optimizer="adam",
+                 save_dir=None):
         """
         :param rnn_arch: dict with layers params
         :param n_step_in: number time series steps in input
@@ -31,8 +35,11 @@ class TS_RNN:
         :param loss: keras loss
         :param optimizer: keras optimizer
         """
-        assert strategy in ["Direct", "Recursive", "MiMo", "DirRec", "DirMo"], \
-            'Use strategy from ["Direct", "Recursive", "MiMo", "DirRec", "DirMo"]'
+        try:
+            assert strategy in ["Direct", "Recursive", "MiMo", "DirRec", "DirMo"]
+        except AssertionError:
+            logger.exception('Use strategy from ["Direct", "Recursive", "MiMo", "DirRec", "DirMo"]')
+            raise AssertionError('Use strategy from ["Direct", "Recursive", "MiMo", "DirRec", "DirMo"]')
 
         if strategy in ["Direct", "Recursive", "DirRec"]:
             assert n_step_out == 1, "For Direct, Recursive and DirRec strategies n_step_out must be 1"
@@ -52,44 +59,52 @@ class TS_RNN:
         self.loss = loss
         self.strategy = strategy
         self.optimizer = optimizer
+        self.save_dir = save_dir
         self._last_known_target = None
         self._last_known_factors = None
         self.prediction_len = None
 
+        if save_dir is not None:
+            handler = logging.FileHandler(os.path.join(save_dir, "ts_rnn.log"), mode='w')
+            logger.setLevel(logging.DEBUG)
+            handler.setFormatter(logging.Formatter('[%(levelname)s] - %(asctime)s - %(message)s'))
+            logger.addHandler(handler)
+
         # compile model
         self._build_by_stategy()
 
-    def _build_model(self):
+    def _build_model(self, name):
         """
         A method for building and compiling RNN models
         :return: keras.Sequential()
         """
-        model = Sequential()
+        _model = Sequential(name=name)
 
         for layer in self.params['layers']:
             if layer[0] == 'Dense':
                 if self.n_features > 1 and (self.n_step_out == 1):
-                    model.add(Dense(self.n_features, **layer[1]))
+                    _model.add(Dense(self.n_features, **layer[1]))
                 else:
-                    model.add(Dense(self.n_step_out, **layer[1]))
+                    _model.add(Dense(self.n_step_out, **layer[1]))
             elif layer[0] == 'LSTM':
-                model.add(LSTM(input_shape=(self.n_step_in, self.n_features), **layer[1]))
+                _model.add(LSTM(input_shape=(self.n_step_in, self.n_features), **layer[1]))
             elif layer[0] == 'GRU':
-                model.add(GRU(input_shape=(self.n_step_in, self.n_features), **layer[1]))
+                _model.add(GRU(input_shape=(self.n_step_in, self.n_features), **layer[1]))
             elif layer[0] == "Bidirectional":
-                model.add(Bidirectional(LSTM(**layer[1]), input_shape=(self.n_step_in, self.n_features)))
+                _model.add(Bidirectional(LSTM(**layer[1]), input_shape=(self.n_step_in, self.n_features)))
             elif layer[0] == 'Dropout':
-                model.add(Dropout(**layer[1]))
+                _model.add(Dropout(**layer[1]))
             elif layer[0] == 'BatchNormalization':
-                model.add(BatchNormalization(scale=False, **layer[1]))
+                _model.add(BatchNormalization(scale=False, **layer[1]))
             else:
-                print(f"TS_RNN doesn't support layer type {layer[0]}")
+                logger.critical(f"TS_RNN doesn't support layer type {layer[0]}")
+                raise AssertionError(f"TS_RNN doesn't support layer type {layer[0]}")
 
-        model.compile(loss=self.loss, optimizer=self.optimizer)
-        assert isinstance(model.layers[-1], Dense), "last block need to be Dense"
+        _model.compile(loss=self.loss, optimizer=self.optimizer)
+        assert isinstance(_model.layers[-1], Dense), "last block need to be Dense"
 
-        # print('[Model] Model Compiled')
-        return model
+        logger.info(f'[Model building] {name} compiled')
+        return _model
 
     def _build_by_stategy(self):
         """
@@ -98,17 +113,19 @@ class TS_RNN:
         """
         if self.strategy == "Direct":
             for i in range(self.horizon):
-                model = self._build_model()
+                name = f'{self.strategy}_model_{i + 1}'
+                _model = self._build_model(name=name)
                 if self.model_list is None:
-                    self.model_list = [{"model_name": f'{self.strategy}_model_{i + 1}',
-                                        "model": model}]
+                    self.model_list = [{"model_name": name,
+                                        "model": _model}]
                 else:
-                    self.model_list.append({"model_name": f'{self.strategy}_model_{i + 1}',
-                                            "model": model})
+                    self.model_list.append({"model_name": name,
+                                            "model": _model})
         if self.strategy in ["Recursive", "MiMo"]:
-            model = self._build_model()
-            self.model_list = [{"model_name": f"{self.strategy}_model",
-                                "model": model}]
+            name = f"{self.strategy}_model"
+            _model = self._build_model(name=name)
+            self.model_list = [{"model_name": name,
+                                "model": _model}]
         return self
 
     @timeit
@@ -119,7 +136,6 @@ class TS_RNN:
             batch_size=36,
             verbose=1,
             validation_split=0,
-            save_dir=None,
             callbacks=None,
             **kwargs):
         """
@@ -142,9 +158,8 @@ class TS_RNN:
 
             _X_train, _y_train, _X_test, _y_test = self._data_process(target=target, factors=factors, _i_model=model_id)
 
-            if verbose != 0:
-                print('[Model] Training Started')
-                print('[Model] %s epochs, %s batch size' % (epochs, batch_size))
+            logger.info(f'[Training] Training {self.model_list[model_id]["model_name"]} started on '
+                        f'%s epochs, %s batch size' % (epochs, batch_size))
 
             if (_X_test is None) or (_y_test is None):
                 validation_data = None
@@ -163,8 +178,12 @@ class TS_RNN:
                                                              **kwargs
                                                              )
 
-            if save_dir is not None and ((validation_split != 0) or (validation_data is not None)):
-                history_plot(history, save_dir)
+            if self.save_dir is not None and ((validation_split != 0) or (validation_data is not None)):
+                history_plot(history,
+                             self.save_dir,
+                             show=True if verbose > 0 else False)
+
+        logger.info('[Training] Training ended')
         return self
 
     @timeit
@@ -187,13 +206,14 @@ class TS_RNN:
             assert factors.shape[0] == self.n_step_in
             assert factors.shape[1] == self.n_features - 1
         else:
-            target = column_or_1d(target, warn=True)
-            _assert_all_finite(target)
+            # target = column_or_1d(target, warn=True)
+            # _assert_all_finite(target)
             assert len(target) == self.n_step_in
 
         # Prepare input
         input_df = target.reshape(-1, 1) if factors is None else np.hstack((factors, target.reshape(-1, 1)))
 
+        logger.info(f'[Prediction] Start predict by {self.strategy} strategy')
         # if Multi input Multi-out prediction
         if self.strategy == "MiMo":
             predicted = self._mimo_pred(input_df)
@@ -204,6 +224,7 @@ class TS_RNN:
         else:
             predicted = self._recursive_pred(input_df, prediction_len=self.prediction_len)
 
+        logger.info(f'[Prediction] End predict by {self.strategy} strategy')
         return predicted
 
     def _recursive_pred(self, data: np.array, prediction_len: int):
@@ -271,6 +292,7 @@ class TS_RNN:
         if factors is None:
             target = column_or_1d(target, warn=True)
             _assert_all_finite(target)
+            pass
         else:
             factors, target = check_X_y(factors, target)
 
@@ -335,7 +357,6 @@ class TS_RNN:
         :return: None
         """
         for model_id in range(len(self.model_list)):
-            print(self.model_list[model_id]["model_name"])
             self.model_list[model_id]["model"].summary()
 
     def save(self, save_dir):
@@ -344,6 +365,6 @@ class TS_RNN:
         :param save_dir: (str) path to h5 file with model
         :return: None
         """
-        print('[Model] Saving model to file %s' % save_dir)
+        logger.info('[Model Saving] Saving model to file %s' % save_dir)
         for model_id in range(len(self.model_list)):
             self.model_list[model_id]["model"].save(self.model_list[model_id]["model_name"] + ".h5/" + save_dir)
