@@ -1,5 +1,4 @@
 # Load libs
-import uuid
 import os
 import numpy as np
 import logging
@@ -49,7 +48,6 @@ class TS_RNN:
             assert horizon % n_step_out == 0, f"For DirMo strategy choose n_step_out from {possible_n_out}"
 
         self.model_list = None
-        self.id = str(uuid.uuid1())
         self.n_step_in = n_step_in
         self.n_step_out = horizon if strategy == "MiMo" else n_step_out
         self.horizon = horizon
