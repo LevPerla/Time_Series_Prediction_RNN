@@ -31,40 +31,39 @@ def metrics_eval(y_true, y_pred, print_result=True, save_dir=None):
     :param res: bool, printing results
     :return: list of metrics
     """
+
+    metrics_dict = {}
+
     # Mean absolute error (MAE)
-    mae = mean_absolute_error(y_true, y_pred)
+    metrics_dict['Mean Absolute Error'] = round(mean_absolute_error(y_true, y_pred), 3)
 
     # Mean squared error (MSE)
-    mse = mean_squared_error(y_true, y_pred)
+    metrics_dict['Mean Squared Error'] = round(mean_squared_error(y_true, y_pred), 3)
 
     # SMAPE is an alternative for MAPE when there are zeros in the testing data. It
     # scales the absolute percentage by the sum of forecast and observed values
     SMAPE = np.mean(np.abs((y_true - y_pred) / ((y_true + y_pred) / 2))) * 100
+    metrics_dict['Scaled Mean absolute percentage error'] = round(SMAPE, 3)
 
     # Calculate the Root Mean Squared Error
     rmse = np.sqrt(mean_squared_error(y_true, y_pred))
+    metrics_dict['Root Mean Squared Error'] = round(rmse, 3)
 
     # Calculate the Mean Absolute Percentage Error
     # y, predictions = check_array(y, predictions)
     MAPE = np.mean(np.abs((y_true - y_pred) / y_true)) * 100
+    metrics_dict['Mean absolute percentage error'] = round(MAPE, 3)
 
     if print_result:
-        print('Mean Absolute Error:', round(mae, 3))
-        print('Mean Squared Error:', round(mse, 3))
-        print('Root Mean Squared Error:', round(rmse, 3))
-        print('Mean absolute percentage error:', round(MAPE, 3))
-        print('Scaled Mean absolute percentage error:', round(SMAPE, 3))
+        for key in metrics_dict.keys():
+            print(f"{key}: {metrics_dict[key]}")
 
     if save_dir is not None:
         with open(save_dir + '/metrics.txt', 'w') as record_file:
-            record_file.write('Mean Absolute Error:' + str(round(mae, 3)))
-            record_file.write('\nMean Squared Error:' + str(round(mse, 3)))
-            record_file.write('\nRoot Mean Squared Error:' + str(round(rmse, 3)))
-            record_file.write('\nMean absolute percentage error:' + str(round(MAPE, 3)))
-            record_file.write('\nScaled Mean absolute percentage error:' + str(round(SMAPE, 3)))
-            record_file.close()
+            for key in metrics_dict.keys():
+                record_file.write(f"{key}: {metrics_dict[key]}\n")
 
-    return mae, mse, rmse, MAPE, SMAPE
+    return metrics_dict
 
 
 #################################          Saving images                   #############################################
@@ -76,34 +75,44 @@ def save_image(save_dir, name, fmt="png"):
 
 
 #################################          Plot train/test/predicted       #############################################
-def train_test_pred_plot(train, test, predicted, save_dir=None, title=None, show=True):
+def train_test_pred_plot(train, test, predicted, save_dir=None, show=True):
     # train_test_pred_plot
     plt.plot(range(len(train)), train, label="Train")
     plt.plot(range(len(train), len(train) + len(test)), test, label="Test")
-    plt.plot(range(len(train), len(train) + len(predicted)), predicted, label="Pred")
-    if title:
-        plt.title("title")
-    plt.legend()
-    if save_dir is not None and not show:
-        save_image(save_dir, "train_test_predicted")
-        plt.close()
-    elif save_dir is not None and show:
-        plt.show()
+
+    if isinstance(predicted, dict):
+        for key in predicted.keys():
+            plt.plot(range(len(train), len(train) + len(predicted[key]["predictions"])),
+                     predicted[key]["predictions"],
+                     label=key)
     else:
+        plt.plot(range(len(train), len(train) + len(predicted)), predicted, label="Pred")
+
+    plt.title('train_test_predicted')
+    plt.legend()
+    if save_dir is not None:
+        save_image(save_dir, "train_test_predicted")
+    if show:
         plt.show()
+    plt.close()
 
     # test_pred_plot
     plt.plot(range(len(train), len(train) + len(test)), test, label="Test")
-    plt.plot(range(len(train), len(train) + len(predicted)), predicted, label="Pred")
-    if title:
-        plt.title("title")
+    if isinstance(predicted, dict):
+        for key in predicted.keys():
+            plt.plot(range(len(train), len(train) + len(predicted[key]["predictions"])),
+                     predicted[key]["predictions"],
+                     label=key)
+    else:
+        plt.plot(range(len(train), len(train) + len(predicted)), predicted, label="Pred")
+
+    plt.title('test_predicted')
     plt.legend()
     if save_dir is not None:
         save_image(save_dir, "test_predicted")
-        plt.close()
     if show:
         plt.show()
-
+    plt.close()
 
 
 #################################          Satting seed                    #############################################
