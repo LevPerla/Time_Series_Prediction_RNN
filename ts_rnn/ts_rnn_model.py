@@ -6,6 +6,7 @@ from ts_rnn.logger import logger
 from tensorflow.keras.models import Sequential, load_model
 from ts_rnn.utils import split_sequence, train_test_split, history_plot, timeit
 from sklearn.utils.validation import check_X_y, column_or_1d, _assert_all_finite
+from keras_tuner import RandomSearch, BayesianOptimization, Hyperband
 from tensorflow.keras.layers import Dense, Dropout, LSTM, GRU, Bidirectional, BatchNormalization
 
 
@@ -20,9 +21,12 @@ class TS_RNN:
                  strategy="MiMo",
                  n_step_out=1,
                  n_features=0,
+                 tuner="BayesianOptimization",
+                 tuner_hp=None,
                  loss="mae",
                  optimizer="adam",
-                 save_dir=None):
+                 save_dir=None,
+                 **kwargs):
         """
         :param rnn_arch: dict with layers params
         :param n_step_in: number time series steps in input
@@ -31,14 +35,23 @@ class TS_RNN:
         :param strategy: prediction strategy
         :param n_step_out: number time series steps in out
         :param n_features: number exogeny time series in input
+        :param tuner: keras tuner name
+        :param tuner_hp: keras_tuner.HyperParameters class
         :param loss: keras loss
         :param optimizer: keras optimizer
+        :param save_dir: (str) path to saving history plot
         """
         try:
             assert strategy in ["Direct", "Recursive", "MiMo", "DirRec", "DirMo"]
         except AssertionError:
             logger.exception('Use strategy from ["Direct", "Recursive", "MiMo", "DirRec", "DirMo"]')
             raise AssertionError('Use strategy from ["Direct", "Recursive", "MiMo", "DirRec", "DirMo"]')
+
+        try:
+            assert tuner in ["RandomSearch", "BayesianOptimization", "Hyperband"]
+        except AssertionError:
+            logger.exception('Use tuner from ["RandomSearch", "BayesianOptimization", "Hyperband"]')
+            raise AssertionError('Use tuner from ["RandomSearch", "BayesianOptimization", "Hyperband"]')
 
         if strategy in ["Direct", "Recursive", "DirRec"]:
             assert n_step_out == 1, "For Direct, Recursive and DirRec strategies n_step_out must be 1"
@@ -58,9 +71,12 @@ class TS_RNN:
         self.strategy = strategy
         self.optimizer = optimizer
         self.save_dir = save_dir
+        self.hp = tuner_hp
+        self.tuner = tuner
         self._last_known_target = None
         self._last_known_factors = None
         self.prediction_len = None
+        self.kwargs = kwargs
 
         if save_dir is not None:
             handler = logging.FileHandler(os.path.join(save_dir, "ts_rnn.log"), mode='w')
@@ -71,12 +87,77 @@ class TS_RNN:
         # compile model
         self._build_by_stategy()
 
-    def _build_model(self, name):
+    def _build_by_stategy(self):
+        """
+        Build TS model by prediction strategy
+        :return:
+        """
+
+        if self.strategy == "Direct":
+            for i in range(self.horizon):
+                name = f'{self.strategy}_model_{i + 1}'
+                self._build_model_or_tuner(name)
+
+        if self.strategy in ["Recursive", "MiMo"]:
+            name = f"{self.strategy}_model"
+            self._build_model_or_tuner(name)
+        return self
+
+    def _build_model_or_tuner(self, name):
+        """
+        function to switch between defining model or tuner (if hp exist)
+        :param name: name of model
+        :return: self
+        """
+        if self.hp is None:
+            _model = self._build(hp=None)
+            if self.model_list is None:
+                self.model_list = [{"model_name": name,
+                                    "tuner": None,
+                                    "model": _model}]
+            else:
+                self.model_list.append({"model_name": name,
+                                        "tuner": None,
+                                        "model": _model})
+        else:
+            tuner_kwargs = {"hypermodel": self._build,
+                            "objective": "val_loss",
+                            "max_trials": 10,
+                            "max_epochs": 100,
+                            "project_name": "TS_RNN_tuner_log",
+                            "directory": self.save_dir,
+                            "overwrite": True,
+                            "hyperparameters": self.hp}
+            tuner_kwargs.update(self.kwargs)
+
+            if self.tuner == "RandomSearch":
+                del tuner_kwargs['max_epochs']
+                _tuner = RandomSearch(**tuner_kwargs)
+            elif self.tuner == "Hyperband":
+                del tuner_kwargs['max_trials']
+                _tuner = Hyperband(**tuner_kwargs)
+            elif self.tuner == "BayesianOptimization":
+                del tuner_kwargs['max_epochs']
+                _tuner = BayesianOptimization(**tuner_kwargs)
+            else:
+                _tuner = BayesianOptimization(**tuner_kwargs)
+
+            if self.model_list is None:
+                self.model_list = [{"model_name": name,
+                                    "tuner": _tuner,
+                                    "model": None}]
+            else:
+                self.model_list.append({"model_name": name,
+                                        "tuner": _tuner,
+                                        "model": None})
+        return self
+
+    def _build(self, hp):
         """
         A method for building and compiling RNN models
         :return: keras.Sequential()
         """
-        _model = Sequential(name=name)
+        _model = Sequential()
 
         for layer in self.params['layers']:
             if layer[0] == 'Dense':
@@ -101,30 +182,7 @@ class TS_RNN:
         _model.compile(loss=self.loss, optimizer=self.optimizer)
         assert isinstance(_model.layers[-1], Dense), "last block need to be Dense"
 
-        logger.info(f'[Model building] {name} compiled')
         return _model
-
-    def _build_by_stategy(self):
-        """
-        Build TS model by prediction strategy
-        :return:
-        """
-        if self.strategy == "Direct":
-            for i in range(self.horizon):
-                name = f'{self.strategy}_model_{i + 1}'
-                _model = self._build_model(name=name)
-                if self.model_list is None:
-                    self.model_list = [{"model_name": name,
-                                        "model": _model}]
-                else:
-                    self.model_list.append({"model_name": name,
-                                            "model": _model})
-        if self.strategy in ["Recursive", "MiMo"]:
-            name = f"{self.strategy}_model"
-            _model = self._build_model(name=name)
-            self.model_list = [{"model_name": name,
-                                "model": _model}]
-        return self
 
     @timeit
     def fit(self,
@@ -145,7 +203,6 @@ class TS_RNN:
         :param verbose: (int) printing fitting process
         :param validation_split: (float) percent of train data used in validation
         :param callbacks: callbacks for EarlyStopping
-        :param save_dir: (str) path to saving history plot
         :return: self
         """
 
@@ -165,21 +222,35 @@ class TS_RNN:
             else:
                 validation_data = (_X_test, _y_test)
 
-            history = self.model_list[model_id]["model"].fit(_X_train,
-                                                             _y_train,
-                                                             epochs=epochs,
-                                                             verbose=verbose,
-                                                             validation_split=validation_split,
-                                                             validation_data=validation_data,
-                                                             callbacks=callbacks,
-                                                             shuffle=False,
-                                                             **kwargs
-                                                             )
+            if self.model_list[model_id]["tuner"] is None:
+                history = self.model_list[model_id]["model"].fit(_X_train,
+                                                                 _y_train,
+                                                                 epochs=epochs,
+                                                                 verbose=verbose,
+                                                                 batch_size=batch_size,
+                                                                 validation_split=validation_split,
+                                                                 validation_data=validation_data,
+                                                                 callbacks=callbacks,
+                                                                 shuffle=False,
+                                                                 **kwargs
+                                                                 )
 
-            if self.save_dir is not None and ((validation_split != 0) or (validation_data is not None)):
-                history_plot(history,
-                             self.save_dir,
-                             show=True if verbose > 0 else False)
+                if self.save_dir is not None and ((validation_split != 0) or (validation_data is not None)):
+                    history_plot(history,
+                                 self.save_dir,
+                                 show=True if verbose > 0 else False)
+            else:
+                self.model_list[model_id]["tuner"].search(_X_train,
+                                                          _y_train,
+                                                          epochs=epochs,
+                                                          verbose=verbose,
+                                                          batch_size=batch_size,
+                                                          validation_split=validation_split,
+                                                          validation_data=validation_data,
+                                                          shuffle=False,
+                                                          **kwargs
+                                                          )
+                self.model_list[model_id]["model"] = self.model_list[model_id]["tuner"].get_best_models(num_models=1)[0]
 
         logger.info('[Training] Training ended')
         return self
@@ -204,8 +275,7 @@ class TS_RNN:
             assert factors.shape[0] == self.n_step_in
             assert factors.shape[1] == self.n_features - 1
         else:
-            # target = column_or_1d(target, warn=True)
-            # _assert_all_finite(target)
+            _assert_all_finite(target)
             assert len(target) == self.n_step_in
 
         # Prepare input
@@ -232,7 +302,6 @@ class TS_RNN:
         :param prediction_len: int, prediction horizon length
         :return: np.array of predictions
         """
-        # print('[Model] Predicting Point-by-Point')
 
         # Check output length
         assert self.n_step_out == 1, "Error: Output length needs to be 1. Use method predict_multi_step"
