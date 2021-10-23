@@ -3,6 +3,7 @@ import os
 import numpy as np
 import logging
 from ts_rnn.logger import logger
+from ts_rnn.config import DEFAULT_HP, DEFAULT_ARCH
 from tensorflow.keras.models import Sequential, load_model
 from ts_rnn.utils import split_sequence, train_test_split, history_plot, timeit
 from sklearn.utils.validation import check_X_y, column_or_1d, _assert_all_finite
@@ -14,10 +15,10 @@ class TS_RNN:
     """ A class for an building and inferencing an RNN models for time series prediction"""
 
     def __init__(self,
-                 rnn_arch: dict,
                  n_step_in: int,
                  horizon: int,
                  test_len: int,
+                 rnn_arch=None,
                  strategy="MiMo",
                  n_step_out=1,
                  n_features=0,
@@ -41,30 +42,39 @@ class TS_RNN:
         :param optimizer: keras optimizer
         :param save_dir: (str) path to saving history plot
         """
-
-        self.model_list = None
-        self.n_step_in = n_step_in
-        self.n_step_out = horizon if strategy == "MiMo" else n_step_out
-        self.horizon = horizon
-        self.n_features = n_features + 1
-        self.params = rnn_arch
-        self.test_len = test_len
-        self.loss = loss
-        self.strategy = strategy
-        self.optimizer = optimizer
-        self.save_dir = save_dir
-        self.hp = tuner_hp
-        self.tuner = tuner
-        self._last_known_target = None
-        self._last_known_factors = None
-        self.prediction_len = None
-        self.kwargs = kwargs
-
+        # Set logger
         if save_dir is not None:
             handler = logging.FileHandler(os.path.join(save_dir, "ts_rnn.log"), mode='w')
             logger.setLevel(logging.DEBUG)
             handler.setFormatter(logging.Formatter('[%(levelname)s] - %(asctime)s - %(message)s'))
             logger.addHandler(handler)
+        # Set model arch
+        if rnn_arch is None:
+            self.params = DEFAULT_ARCH
+            self.hp = DEFAULT_HP
+        elif (rnn_arch is not None) and (tuner_hp is None):
+            logger.warning(f'tuner_hp is not defined. Default architecture used instead')
+            self.params = DEFAULT_ARCH
+            self.hp = DEFAULT_HP
+        else:
+            self.params = rnn_arch
+            self.hp = tuner_hp
+        self.n_step_in = n_step_in
+        self.n_step_out = horizon if strategy == "MiMo" else n_step_out
+        self.horizon = horizon
+        self.n_features = n_features + 1
+        self.test_len = test_len
+        self.loss = loss
+        self.strategy = strategy
+        self.optimizer = optimizer
+        self.save_dir = save_dir
+        self.tuner = tuner
+        self._last_known_target = None
+        self._last_known_factors = None
+        self.prediction_len = None
+        self.model_list = None
+        self.kwargs = kwargs
+
 
         self._assert_init_params()
 
