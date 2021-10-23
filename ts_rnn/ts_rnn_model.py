@@ -15,7 +15,7 @@ class TS_RNN:
     """ A class for an building and inferencing an RNN models for time series prediction"""
 
     def __init__(self,
-                 n_step_in: int,
+                 n_lags: int,
                  horizon: int,
                  test_len: int,
                  rnn_arch=None,
@@ -30,7 +30,7 @@ class TS_RNN:
                  **kwargs):
         """
         :param rnn_arch: dict with layers params
-        :param n_step_in: number time series steps in input
+        :param n_lags: number time series steps in input
         :param horizon: length of prediction horizon
         :param test_len: length of last observations that will be dropped from training
         :param strategy: prediction strategy
@@ -59,7 +59,7 @@ class TS_RNN:
         else:
             self.params = rnn_arch
             self.hp = tuner_hp
-        self.n_step_in = n_step_in
+        self.n_lags = n_lags
         self.n_step_out = horizon if strategy == "MiMo" else n_step_out
         self.horizon = horizon
         self.n_features = n_features + 1
@@ -181,11 +181,11 @@ class TS_RNN:
                 else:
                     _model.add(Dense(self.n_step_out, **layer[1]))
             elif layer[0] == 'LSTM':
-                _model.add(LSTM(input_shape=(self.n_step_in, self.n_features), **layer[1]))
+                _model.add(LSTM(input_shape=(self.n_lags, self.n_features), **layer[1]))
             elif layer[0] == 'GRU':
-                _model.add(GRU(input_shape=(self.n_step_in, self.n_features), **layer[1]))
+                _model.add(GRU(input_shape=(self.n_lags, self.n_features), **layer[1]))
             elif layer[0] == "Bidirectional":
-                _model.add(Bidirectional(LSTM(**layer[1]), input_shape=(self.n_step_in, self.n_features)))
+                _model.add(Bidirectional(LSTM(**layer[1]), input_shape=(self.n_lags, self.n_features)))
             elif layer[0] == 'Dropout':
                 _model.add(Dropout(**layer[1]))
             elif layer[0] == 'BatchNormalization':
@@ -287,11 +287,11 @@ class TS_RNN:
 
         if factors is not None:
             # factors, target = check_X_y(factors, target)
-            assert factors.shape[0] == self.n_step_in
+            assert factors.shape[0] == self.n_lags
             assert factors.shape[1] == self.n_features - 1
         else:
             _assert_all_finite(target)
-            assert len(target) == self.n_step_in
+            assert len(target) == self.n_lags
 
         # Prepare input
         input_df = target.reshape(-1, 1) if factors is None else np.hstack((factors, target.reshape(-1, 1)))
@@ -324,7 +324,7 @@ class TS_RNN:
 
         predicted = []
         past_targets = data
-        var = np.reshape(past_targets, (1, self.n_step_in, self.n_features))
+        var = np.reshape(past_targets, (1, self.n_lags, self.n_features))
 
         for i in range(prediction_len):
             # Prediction RNN for i step
@@ -332,7 +332,7 @@ class TS_RNN:
             predicted.append(prediction_point[0][-1])
             # Preparation of sequence
             past_targets = np.concatenate((past_targets[1:], prediction_point))
-            var = np.reshape(past_targets, (1, self.n_step_in, self.n_features))
+            var = np.reshape(past_targets, (1, self.n_lags, self.n_features))
         predicted = np.array(predicted)
         return predicted
 
@@ -342,7 +342,7 @@ class TS_RNN:
         :param data : np.array, the last sequence of true data
         :return: np.array of predictions
         """
-        var = np.reshape(data, (1, self.n_step_in, self.n_features))
+        var = np.reshape(data, (1, self.n_lags, self.n_features))
         return self.model_list[0]['model'].predict(var)
 
     def _direct_pred(self, data: np.array):
@@ -354,7 +354,7 @@ class TS_RNN:
         assert len(self.model_list) == self.horizon, "Num of models != length of prediction horizon"
 
         predicted = []
-        var = np.reshape(data, (1, self.n_step_in, self.n_features))
+        var = np.reshape(data, (1, self.n_lags, self.n_features))
 
         for i in range(len(self.model_list)):
             # Prediction RNN for i step
@@ -384,13 +384,13 @@ class TS_RNN:
         # Train/ Test split
         train, test = train_test_split(input_df, test_len=self.test_len)
 
-        self._last_known_target = train[-self.n_step_in:, -1]
+        self._last_known_target = train[-self.n_lags:, -1]
         if factors is not None:
-            self._last_known_factors = train[-self.n_step_in:, :-1]
+            self._last_known_factors = train[-self.n_lags:, :-1]
 
         # split into samples
         _X_train, _y_train = split_sequence(train,
-                                            n_steps_in=self.n_step_in,
+                                            n_steps_in=self.n_lags,
                                             n_steps_out=self.horizon if (
                                                     self.strategy == "Direct") else self.n_step_out,
                                             _full_out=True if ((factors is not None) and
@@ -405,7 +405,7 @@ class TS_RNN:
             _X_test, _y_test = None, None
         else:
             _X_test, _y_test = split_sequence(input_df,
-                                              n_steps_in=self.n_step_in,
+                                              n_steps_in=self.n_lags,
                                               n_steps_out=self.horizon if (
                                                       self.strategy == "Direct") else self.n_step_out,
                                               _full_out=True if ((factors is not None) and
