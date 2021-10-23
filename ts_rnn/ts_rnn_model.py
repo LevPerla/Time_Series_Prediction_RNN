@@ -41,24 +41,6 @@ class TS_RNN:
         :param optimizer: keras optimizer
         :param save_dir: (str) path to saving history plot
         """
-        try:
-            assert strategy in ["Direct", "Recursive", "MiMo", "DirRec", "DirMo"]
-        except AssertionError:
-            logger.exception('Use strategy from ["Direct", "Recursive", "MiMo", "DirRec", "DirMo"]')
-            raise AssertionError('Use strategy from ["Direct", "Recursive", "MiMo", "DirRec", "DirMo"]')
-
-        try:
-            assert tuner in ["RandomSearch", "BayesianOptimization", "Hyperband"]
-        except AssertionError:
-            logger.exception('Use tuner from ["RandomSearch", "BayesianOptimization", "Hyperband"]')
-            raise AssertionError('Use tuner from ["RandomSearch", "BayesianOptimization", "Hyperband"]')
-
-        if strategy in ["Direct", "Recursive", "DirRec"]:
-            assert n_step_out == 1, "For Direct, Recursive and DirRec strategies n_step_out must be 1"
-
-        if strategy == "DirMo":
-            possible_n_out = [i + 1 for i in range(10) if 10 % (i + 1) == 0]
-            assert horizon % n_step_out == 0, f"For DirMo strategy choose n_step_out from {possible_n_out}"
 
         self.model_list = None
         self.n_step_in = n_step_in
@@ -84,8 +66,31 @@ class TS_RNN:
             handler.setFormatter(logging.Formatter('[%(levelname)s] - %(asctime)s - %(message)s'))
             logger.addHandler(handler)
 
+        self._assert_init_params()
+
         # compile model
         self._build_by_stategy()
+
+    def _assert_init_params(self):
+        try:
+            assert self.strategy in ["Direct", "Recursive", "MiMo", "DirRec", "DirMo"]
+        except AssertionError:
+            logger.exception('Use strategy from ["Direct", "Recursive", "MiMo", "DirRec", "DirMo"]')
+            raise AssertionError('Use strategy from ["Direct", "Recursive", "MiMo", "DirRec", "DirMo"]')
+
+        try:
+            assert self.tuner in ["RandomSearch", "BayesianOptimization", "Hyperband"]
+        except AssertionError:
+            logger.exception('Use tuner from ["RandomSearch", "BayesianOptimization", "Hyperband"]')
+            raise AssertionError('Use tuner from ["RandomSearch", "BayesianOptimization", "Hyperband"]')
+
+        if self.strategy in ["Direct", "Recursive", "DirRec"]:
+            assert self.n_step_out == 1, "For Direct, Recursive and DirRec strategies n_step_out must be 1"
+
+        if self.strategy == "DirMo":
+            possible_n_out = [i + 1 for i in range(10) if 10 % (i + 1) == 0]
+            assert self.horizon % self.n_step_out == 0, f"For DirMo strategy and horizon {self.horizon} " \
+                                                        f"choose n_step_out from {possible_n_out}"
 
     def _build_by_stategy(self):
         """
@@ -271,7 +276,7 @@ class TS_RNN:
         self.prediction_len = prediction_len
 
         if factors is not None:
-            factors, target = check_X_y(factors, target)
+            # factors, target = check_X_y(factors, target)
             assert factors.shape[0] == self.n_step_in
             assert factors.shape[1] == self.n_features - 1
         else:
