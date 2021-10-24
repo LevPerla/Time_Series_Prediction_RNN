@@ -17,7 +17,6 @@ class TS_RNN:
     def __init__(self,
                  n_lags: int,
                  horizon: int,
-                 test_len: int,
                  rnn_arch=None,
                  strategy="MiMo",
                  n_step_out=1,
@@ -32,7 +31,6 @@ class TS_RNN:
         :param rnn_arch: dict with layers params
         :param n_lags: number time series steps in input
         :param horizon: length of prediction horizon
-        :param test_len: length of last observations that will be dropped from training
         :param strategy: prediction strategy
         :param n_step_out: number time series steps in out
         :param n_features: number exogeny time series in input
@@ -53,9 +51,9 @@ class TS_RNN:
             self.params = DEFAULT_ARCH
             self.hp = DEFAULT_HP
         elif (rnn_arch is not None) and (tuner_hp is None):
-            logger.warning(f'tuner_hp is not defined. Default architecture used instead')
-            self.params = DEFAULT_ARCH
-            self.hp = DEFAULT_HP
+            logger.warning(f'tuner_hp is not defined. Model will be trained without tuning')
+            self.params = rnn_arch
+            self.hp = None
         else:
             self.params = rnn_arch
             self.hp = tuner_hp
@@ -63,7 +61,6 @@ class TS_RNN:
         self.n_step_out = horizon if strategy == "MiMo" else n_step_out
         self.horizon = horizon
         self.n_features = n_features + 1
-        self.test_len = test_len
         self.loss = loss
         self.strategy = strategy
         self.optimizer = optimizer
@@ -201,8 +198,10 @@ class TS_RNN:
 
     @timeit
     def fit(self,
-            target=None,
-            factors=None,
+            target_train,
+            target_val=None,
+            factors_train=None,
+            factors_val=None,
             epochs=30,
             batch_size=36,
             verbose=1,
@@ -211,8 +210,8 @@ class TS_RNN:
             **kwargs):
         """
         Train model
-        :param target: (np.array)
-        :param factors: (np.array)
+        :param target_train: (np.array)
+        :param factors_train: (np.array)
         :param epochs: (int)
         :param batch_size: (int)
         :param verbose: (int) printing fitting process
@@ -220,22 +219,22 @@ class TS_RNN:
         :param callbacks: callbacks for EarlyStopping
         :return: self
         """
-
-        # Tests
-        assert target is not None, "Define target argument"
-
         for model_id in range(len(self.model_list)):
 
-            _X_train, _y_train, _X_test, _y_test = self._data_process(target=target, factors=factors, _i_model=model_id)
+            _X_train, _y_train, _X_val, _y_val = self._data_process(target_train=target_train,
+                                                                    target_val=target_val,
+                                                                    factors_train=factors_train,
+                                                                    factors_val=factors_val,
+                                                                    _i_model=model_id)
 
             logger.info(f'[Training] Training {self.model_list[model_id]["model_name"]} started on '
                         f'%s epochs, %s batch size' % (epochs, batch_size))
 
-            if (_X_test is None) or (_y_test is None):
+            if (_X_val is None) or (_y_val is None):
                 validation_data = None
                 callbacks = None
             else:
-                validation_data = (_X_test, _y_test)
+                validation_data = (_X_val, _y_val)
 
             if self.model_list[model_id]["tuner"] is None:
                 history = self.model_list[model_id]["model"].fit(_X_train,
@@ -364,25 +363,42 @@ class TS_RNN:
         predicted = np.array(predicted)
         return predicted
 
-    def _data_process(self, target=None, factors=None, _i_model=None):
+    def _data_process(self,
+                      target_train=None,
+                      target_val=None,
+                      factors_train=None,
+                      factors_val=None,
+                      _i_model=None):
         """
         Prepare input to model
         :param target:
         :param factors:
         :param _i_model: number of model from Direct strategy
         """
-        if factors is None:
-            target = column_or_1d(target, warn=True)
-            _assert_all_finite(target)
-            pass
-        else:
-            factors, target = check_X_y(factors, target)
+        if (target_val is not None) and (factors_val is not None):
+            target = np.concatenate([target_train, target_val]).flatten()
+            factors = np.concatenate([factors_train, factors_val])
+            val_len = target_val.shape[0]
+        elif (target_val is not None) and (factors_val is None) and (self.n_features != 1):
+            logger.warning(f'Validation factors is not defined. Validation will not be used')
+            target = target_train
+            factors = factors_train
+            val_len = 0
+        elif (target_val is not None) and (factors_val is None) and (self.n_features == 1):
+            target = np.concatenate([target_train, target_val]).flatten()
+            factors = factors_train
+            val_len = target_val.shape[0]
+        elif target_val is None:
+            logger.warning(f'Validation target is not defined. Validation will not be used')
+            target = target_train
+            factors = factors_train
+            val_len = 0
 
         # Prepare input
         input_df = target.reshape(-1, 1) if (factors is None) else np.hstack((factors, target.reshape(-1, 1)))
 
         # Train/ Test split
-        train, test = train_test_split(input_df, test_len=self.test_len)
+        train, test = train_test_split(input_df, test_len=val_len)
 
         self._last_known_target = train[-self.n_lags:, -1]
         if factors is not None:
@@ -401,7 +417,7 @@ class TS_RNN:
         _X_train = _X_train.reshape((_X_train.shape[0], _X_train.shape[1], input_df[0].size))
 
         # prepare X_test and y_test
-        if self.test_len == 0:
+        if val_len == 0:
             _X_test, _y_test = None, None
         else:
             _X_test, _y_test = split_sequence(input_df,
