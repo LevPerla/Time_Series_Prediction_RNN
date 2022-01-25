@@ -1,6 +1,7 @@
 # Load libs
 import os
 import numpy as np
+import pandas as pd
 import logging
 from ts_rnn.logger import logger
 from ts_rnn.config import DEFAULT_HP, DEFAULT_ARCH
@@ -46,6 +47,7 @@ class TS_RNN:
             logger.setLevel(logging.DEBUG)
             handler.setFormatter(logging.Formatter('[%(levelname)s] - %(asctime)s - %(message)s'))
             logger.addHandler(handler)
+
         # Set model arch
         if rnn_arch is None:
             self.params = DEFAULT_ARCH
@@ -57,6 +59,7 @@ class TS_RNN:
         else:
             self.params = rnn_arch
             self.hp = tuner_hp
+
         self.n_lags = n_lags
         self.n_step_out = horizon if strategy == "MiMo" else n_step_out
         self.horizon = horizon
@@ -109,7 +112,6 @@ class TS_RNN:
             for i in range(self.horizon):
                 name = f'{self.strategy}_model_{i + 1}'
                 self._build_model_or_tuner(name)
-
         if self.strategy in ["Recursive", "MiMo"]:
             name = f"{self.strategy}_model"
             self._build_model_or_tuner(name)
@@ -287,7 +289,6 @@ class TS_RNN:
         self.prediction_len = prediction_len
 
         if factors is not None:
-            # factors, target = check_X_y(factors, target)
             assert factors.shape[0] == self.n_lags
             assert factors.shape[1] == self.n_features - 1
         else:
@@ -295,6 +296,8 @@ class TS_RNN:
             assert len(target) == self.n_lags
 
         # Prepare input
+        if isinstance(target, pd.Series):
+            target = target.values
         input_df = target.reshape(-1, 1) if factors is None else np.hstack((factors, target.reshape(-1, 1)))
 
         logger.info(f'[Prediction] Start predict by {self.strategy} strategy')
