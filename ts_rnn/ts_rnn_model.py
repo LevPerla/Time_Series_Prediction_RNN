@@ -6,9 +6,9 @@ from ts_rnn.logger import logger
 from ts_rnn.config import DEFAULT_HP, DEFAULT_ARCH
 from tensorflow.keras.models import Sequential, load_model
 from ts_rnn.utils import split_sequence, train_test_split, history_plot, timeit
-from sklearn.utils.validation import check_X_y, column_or_1d, _assert_all_finite
+from sklearn.utils.validation import _assert_all_finite
 from keras_tuner import RandomSearch, BayesianOptimization, Hyperband
-from tensorflow.keras.layers import Dense, Dropout, LSTM, GRU, Bidirectional, BatchNormalization
+from tensorflow.keras.layers import Dense, Dropout, LSTM, GRU, Bidirectional, BatchNormalization, SimpleRNN, RNN
 
 
 class TS_RNN:
@@ -181,6 +181,8 @@ class TS_RNN:
                 _model.add(LSTM(input_shape=(self.n_lags, self.n_features), **layer[1]))
             elif layer[0] == 'GRU':
                 _model.add(GRU(input_shape=(self.n_lags, self.n_features), **layer[1]))
+            elif layer[0] == 'SimpleRNN':
+                _model.add(SimpleRNN(input_shape=(self.n_lags, self.n_features), **layer[1]))
             elif layer[0] == "Bidirectional":
                 _model.add(Bidirectional(LSTM(**layer[1]), input_shape=(self.n_lags, self.n_features)))
             elif layer[0] == 'Dropout':
