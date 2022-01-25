@@ -6,6 +6,7 @@
 /model
 /notebooks/Compate_data_transformers.ipynb
 /notebooks/Compare_prediction_methods.ipynb
+/notebooks/experiments.ipynb
 /README_parts.md
 
 # Byte-compiled / optimized / DLL files
@@ -148,4 +149,3 @@ dmypy.json
 cython_debug/
 
 **/.ipynb_checkpoints
-notebooks/Compate_data_transformers.ipynb
