@@ -2,12 +2,9 @@
 **/ts_rnn/model/grid_search.py
 **/ts_rnn/model/validation.py
 **/reports/
-/test.py
-/test_1.py
+/experiments.py
 /model
-/notebooks/Compare_prediction_methods-cif-dataset_SD.ipynb
-/notebooks/Compare_prediction_methods-cif-dataset.ipynb
-/notebooks/Compare_prediction_methods-запуск_2.ipynb
+/notebooks/Compate_data_transformers.ipynb
 /notebooks/Compare_prediction_methods.ipynb
 /README_parts.md
 
@@ -151,3 +148,4 @@ dmypy.json
 cython_debug/
 
 **/.ipynb_checkpoints
+notebooks/Compate_data_transformers.ipynb
