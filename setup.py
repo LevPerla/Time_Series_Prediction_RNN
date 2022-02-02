@@ -11,7 +11,7 @@ with (source_root / "requirements.txt").open(encoding="utf8") as f:
     requirements = f.readlines()
 
 setup(
-    name='src',
+    name='ts_rnn',
     version='0.2',
     author="Lev Perla",
     author_email="levperla@mail.ru",
