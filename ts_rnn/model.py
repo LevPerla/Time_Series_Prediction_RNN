@@ -239,6 +239,7 @@ class TS_RNN:
         :param callbacks: callbacks for EarlyStopping
         :return: self
         """
+        true_n_lags = self.n_lags
         for model_id in range(len(self.model_list)):
 
             _X_train, _y_train, _X_val, _y_val = self._data_process(target_train=target_train,
@@ -274,6 +275,8 @@ class TS_RNN:
                                  self.save_dir,
                                  show=True if verbose > 0 else False)
             else:
+                if self.strategy == "DirRec":
+                    self.n_lags = true_n_lags + model_id  # needed to train DirRec strategy
                 self.model_list[model_id]["tuner"].search(_X_train,
                                                           _y_train,
                                                           epochs=epochs,
@@ -285,7 +288,8 @@ class TS_RNN:
                                                           **kwargs
                                                           )
                 self.model_list[model_id]["model"] = self.model_list[model_id]["tuner"].get_best_models(num_models=1)[0]
-
+                if self.strategy == "DirRec":
+                    self.n_lags = true_n_lags
         logger.info('[Training] Training ended')
         return self
 
