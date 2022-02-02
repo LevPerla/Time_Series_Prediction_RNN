@@ -3,7 +3,7 @@
 from sklearn.metrics import mean_squared_error, mean_absolute_error
 import matplotlib.pyplot as plt
 from itertools import product
-from src.logger import logger
+from ts_rnn.logger import logger
 import time
 import numpy as np
 import random

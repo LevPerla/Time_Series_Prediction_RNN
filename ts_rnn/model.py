@@ -4,10 +4,10 @@ import math
 import numpy as np
 import pandas as pd
 import logging
-from src.logger import logger
-from src.config import DEFAULT_HP, DEFAULT_ARCH
+from ts_rnn.logger import logger
+from ts_rnn.config import DEFAULT_HP, DEFAULT_ARCH
 from tensorflow.keras.models import Sequential, load_model
-from src.utils import split_sequence, train_test_split, history_plot, timeit
+from ts_rnn.utils import split_sequence, train_test_split, history_plot, timeit
 from sklearn.utils.validation import _assert_all_finite
 from keras_tuner import RandomSearch, BayesianOptimization, Hyperband
 from tensorflow.keras.layers import Dense, Dropout, LSTM, GRU, Bidirectional, BatchNormalization, SimpleRNN, RNN
@@ -44,7 +44,7 @@ class TS_RNN:
         """
         # Set logger
         if save_dir is not None:
-            handler = logging.FileHandler(os.path.join(save_dir, "src.log"), mode='w')
+            handler = logging.FileHandler(os.path.join(save_dir, "ts_rnn.log"), mode='w')
             logger.setLevel(logging.DEBUG)
             handler.setFormatter(logging.Formatter('[%(levelname)s] - %(asctime)s - %(message)s'))
             logger.addHandler(handler)
