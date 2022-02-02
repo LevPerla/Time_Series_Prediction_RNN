@@ -108,7 +108,7 @@ class TS_RNN:
         :return:
         """
 
-        if self.strategy in ["Direct", "DirRec"]:
+        if self.strategy == "Direct":
             for i in range(self.horizon):
                 name = f'{self.strategy}_model_{i + 1}'
                 self._build_model_or_tuner(name)
@@ -117,7 +117,15 @@ class TS_RNN:
             name = f"{self.strategy}_model"
             self._build_model_or_tuner(name)
 
-        if self.strategy == "DirMo":
+        elif self.strategy == "DirRec":
+            true_n_lags = self.n_lags
+            for i in range(self.horizon):
+                self.n_lags = true_n_lags + i
+                name = f'{self.strategy}_model_{i + 1}'
+                self._build_model_or_tuner(name)
+            self.n_lags = true_n_lags
+
+        elif self.strategy == "DirMo":
             n_models_need = math.ceil(self.horizon / self.n_step_out)
             for i in range(n_models_need):
                 name = f'{self.strategy}_model_{i + 1}'
