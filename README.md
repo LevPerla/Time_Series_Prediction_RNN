@@ -26,8 +26,9 @@ The library includes one main module ts_rnn:
 
 ### Getting started
 To import TS_RNN model run
+
 ```python
-from ts_rnn.ts_rnn_model import TS_RNN
+from src.ts_rnn_model import TS_RNN
 ```
 
 

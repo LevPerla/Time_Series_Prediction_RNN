@@ -7,3 +7,4 @@ jupyter>=1.0.0
 notebook
 jupyterlab
 keras-tuner==1.0.4
+pytest
