@@ -1,5 +1,6 @@
 # Load libs
 import os
+import math
 import numpy as np
 import pandas as pd
 import logging
@@ -75,7 +76,6 @@ class TS_RNN:
         self.model_list = None
         self.kwargs = kwargs
 
-
         self._assert_init_params()
 
         # compile model
@@ -108,13 +108,21 @@ class TS_RNN:
         :return:
         """
 
-        if self.strategy == "Direct":
+        if self.strategy in ["Direct", "DirRec"]:
             for i in range(self.horizon):
                 name = f'{self.strategy}_model_{i + 1}'
                 self._build_model_or_tuner(name)
-        if self.strategy in ["Recursive", "MiMo"]:
+
+        elif self.strategy in ["Recursive", "MiMo"]:
             name = f"{self.strategy}_model"
             self._build_model_or_tuner(name)
+
+        if self.strategy == "DirMo":
+            n_models_need = math.ceil(self.horizon / self.n_step_out)
+            for i in range(n_models_need):
+                name = f'{self.strategy}_model_{i + 1}'
+                self._build_model_or_tuner(name)
+
         return self
 
     def _build_model_or_tuner(self, name):
@@ -308,8 +316,17 @@ class TS_RNN:
         elif self.strategy == "Direct":
             predicted = self._direct_pred(input_df)
         # if Recursive prediction
-        else:
+        elif self.strategy == "Recursive":
             predicted = self._recursive_pred(input_df, prediction_len=self.prediction_len)
+        # if DirRec prediction
+        elif self.strategy == 'DirRec':
+            predicted = self._dirrec_pred(input_df)
+        # if DirMo prediction
+        elif self.strategy == 'DirMo':
+            predicted = self._dirmo_pred(input_df)
+        else:
+            logger.critical(f'Use strategy from ["Direct", "Recursive", "MiMo", "DirRec", "DirMo"]')
+            raise AssertionError(f'Use strategy from ["Direct", "Recursive", "MiMo", "DirRec", "DirMo"]')
 
         logger.info(f'[Prediction] End predict by {self.strategy} strategy')
         return predicted
@@ -368,6 +385,50 @@ class TS_RNN:
         predicted = np.array(predicted)
         return predicted
 
+    def _dirrec_pred(self, data: np.array):
+        """
+        Predict only 1 step ahead each time of prediction_len
+        :param data: np.array, the last sequence of true data
+        :param prediction_len: int, prediction horizon length
+        :return: np.array of predictions
+        """
+
+        # Check output length
+        assert self.n_step_out == 1, "Error: Output length needs to be 1"
+
+        predicted = []
+        past_targets = data
+        var = np.reshape(past_targets, (1, self.n_lags, self.n_features))
+
+        for i in range(len(self.model_list)):
+            # Prediction RNN for i step
+            prediction_point = self.model_list[i]['model'].predict(var)
+            predicted.append(prediction_point[0][-1])
+            # Preparation of sequence
+            past_targets = np.concatenate((past_targets, prediction_point))
+            var = np.reshape(past_targets, (1, self.n_lags + i + 1, self.n_features))
+        predicted = np.array(predicted)
+        return predicted
+
+    def _dirmo_pred(self, data: np.array):
+        """
+        Predict only 1 step ahead by one model fot each value in prediction_len
+        :param data: np.array, the last sequence of true data
+        :return: np.array of predictions
+        """
+        assert len(self.model_list) == math.ceil(self.horizon / self.n_step_out), "Num of models != horizon/s_step_out"
+
+        predicted = []
+        var = np.reshape(data, (1, self.n_lags, self.n_features))
+
+        for i in range(len(self.model_list)):
+            # Prediction RNN for i step
+            prediction_point = self.model_list[i]['model'].predict(var)
+            predicted.append(prediction_point[0])
+            # Preparation of sequence
+        predicted = np.array(predicted).flatten()
+        return predicted
+
     def _data_process(self,
                       target_train=None,
                       target_val=None,
@@ -411,12 +472,19 @@ class TS_RNN:
 
         # split into samples
         _X_train, _y_train = split_sequence(train,
-                                            n_steps_in=self.n_lags,
-                                            n_steps_out=self.horizon if (
-                                                    self.strategy == "Direct") else self.n_step_out,
+                                            n_steps_in=self.n_lags + _i_model if (self.strategy == "DirRec") else
+                                            self.n_lags,
+                                            n_steps_out=self.horizon if (self.strategy in ["Direct", 'DirMo']) else
+                                            self.n_step_out,
                                             _full_out=True if ((factors is not None) and
-                                                               (self.strategy == "Recursive")) else False,
-                                            _i_model=_i_model if (self.strategy == "Direct") else None)
+                                                               (self.strategy in ["Recursive", 'DirRec'])) else False,
+                                            _i_model=_i_model if (
+                                                    self.strategy == "Direct") else
+                                            (self.n_step_out +
+                                             _i_model * math.ceil(self.horizon / self.n_step_out) -
+                                             _i_model) if (self.strategy == "DirMo") else None,
+                                            _start_ind=_i_model * math.ceil(self.horizon / self.n_step_out) -
+                                                       _i_model if (self.strategy == "DirMo") else None)
 
         # reshape from [samples, timesteps] into [samples, timesteps, features]
         _X_train = _X_train.reshape((_X_train.shape[0], _X_train.shape[1], input_df[0].size))
@@ -426,12 +494,19 @@ class TS_RNN:
             _X_test, _y_test = None, None
         else:
             _X_test, _y_test = split_sequence(input_df,
-                                              n_steps_in=self.n_lags,
-                                              n_steps_out=self.horizon if (
-                                                      self.strategy == "Direct") else self.n_step_out,
+                                              n_steps_in=self.n_lags + _i_model if (self.strategy == "DirRec") else
+                                              self.n_lags,
+                                              n_steps_out=self.horizon if (self.strategy in ["Direct", 'DirMo']) else
+                                              self.n_step_out,
                                               _full_out=True if ((factors is not None) and
-                                                                 (self.strategy == "Recursive")) else False,
-                                              _i_model=_i_model if (self.strategy == "Direct") else None)
+                                                                 (self.strategy in ["Recursive", 'DirRec'])) else False,
+                                              _i_model=_i_model if (
+                                                      self.strategy == "Direct") else
+                                              (self.n_step_out +
+                                               _i_model * math.ceil(self.horizon / self.n_step_out) -
+                                               _i_model) if (self.strategy == "DirMo") else None,
+                                              _start_ind=_i_model * math.ceil(self.horizon / self.n_step_out) -
+                                                         _i_model if (self.strategy == "DirMo") else None)
             _X_test = _X_test[-len(test):]
             _y_test = _y_test[-len(test):]
             _X_test = _X_test.reshape((_X_test.shape[0], _X_test.shape[1], self.n_features))

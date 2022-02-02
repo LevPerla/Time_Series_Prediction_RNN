@@ -190,7 +190,7 @@ def config_generator(new_config, config):
 
 
 #################################          split_sequence                  #############################################
-def split_sequence(data, n_steps_in, n_steps_out, _full_out=False, _i_model=None):
+def split_sequence(data, n_steps_in, n_steps_out, _full_out=False, _i_model=None, _start_ind=None):
     """
     Split sequence to X and y
     :param data: (np.ndarray) Sequences to split
@@ -222,8 +222,10 @@ def split_sequence(data, n_steps_in, n_steps_out, _full_out=False, _i_model=None
     X = np.array(X)
     y = np.array(y)
 
-    if _i_model is not None:
+    if (_i_model is not None) and (_start_ind is None):  # Direct
         y = y[:, _i_model].reshape(-1, 1)
+    elif (_i_model is not None) and (_start_ind is not None):  # DirMo
+        y = y[:, _start_ind: _i_model]
 
     return X, y
 
