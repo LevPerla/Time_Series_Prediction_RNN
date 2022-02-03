@@ -190,7 +190,7 @@ def config_generator(new_config, config):
 
 
 #################################          split_sequence                  #############################################
-def split_sequence(data, n_steps_in, n_steps_out, _full_out=False, _i_model=None, _start_ind=None):
+def split_sequence(data, n_steps_in, n_steps_out, _full_out=False, _i_model=0, _start_ind=0):
     """
     Split sequence to X and y
     :param data: (np.ndarray) Sequences to split
@@ -202,30 +202,27 @@ def split_sequence(data, n_steps_in, n_steps_out, _full_out=False, _i_model=None
     """
     X, y = list(), list()
     for i in range(len(data)):
-        # find the end of this pattern
-        end_ix = i + n_steps_in
+        # set_index
+        in_start_ind = i
+        in_end_ind = i + n_steps_in
 
-        out_end_ix = end_ix + n_steps_out
+        out_start_ind = in_end_ind + _i_model + _start_ind
+        out_end_ind = out_start_ind + n_steps_out
 
         # check if we are beyond the sequence
-        if out_end_ix > len(data):
+        if out_end_ind - 1 >= len(data):
             break
 
         # gather input and output parts of the pattern
         if _full_out:
-            seq_x, seq_y = data[i:end_ix, :], data[end_ix: out_end_ix, :].flatten()
+            seq_x, seq_y = data[in_start_ind:in_end_ind, :], data[out_start_ind: out_end_ind, :].flatten()
         else:
-            seq_x, seq_y = data[i:end_ix, :], data[end_ix: out_end_ix, -1]
+            seq_x, seq_y = data[in_start_ind:in_end_ind, :], data[out_start_ind: out_end_ind, -1]
         X.append(seq_x)
         y.append(seq_y)
 
     X = np.array(X)
     y = np.array(y)
-
-    if (_i_model is not None) and (_start_ind is None):  # Direct
-        y = y[:, _i_model].reshape(-1, 1)
-    elif (_i_model is not None) and (_start_ind is not None):  # DirMo
-        y = y[:, _start_ind: _i_model]
 
     return X, y
 

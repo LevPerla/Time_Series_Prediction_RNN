@@ -97,10 +97,8 @@ class TS_RNN:
         if self.strategy in ["Direct", "Recursive", "DirRec"]:
             assert self.n_step_out == 1, "For Direct, Recursive and DirRec strategies n_step_out must be 1"
 
-        if self.strategy == "DirMo":
-            possible_n_out = [i + 1 for i in range(10) if 10 % (i + 1) == 0]
-            assert self.horizon % self.n_step_out == 0, f"For DirMo strategy and horizon {self.horizon} " \
-                                                        f"choose n_step_out from {possible_n_out}"
+        if self.strategy == "DirMo" and (self.n_step_out == 1):
+            logger.warning(f'n_step_out == 1. Strategy DirMo equal to Direct. Please set n_step_out')
 
     def _build_by_stategy(self):
         """
@@ -438,7 +436,7 @@ class TS_RNN:
             prediction_point = self.model_list[i]['model'].predict(var)
             predicted.append(prediction_point[0])
             # Preparation of sequence
-        predicted = np.array(predicted).flatten()
+        predicted = np.array(predicted).flatten()[:self.horizon]
         return predicted
 
     def _data_process(self,
@@ -484,19 +482,14 @@ class TS_RNN:
 
         # split into samples
         _X_train, _y_train = split_sequence(train,
-                                            n_steps_in=self.n_lags + _i_model if (self.strategy == "DirRec") else
-                                            self.n_lags,
-                                            n_steps_out=self.horizon if (self.strategy in ["Direct", 'DirMo']) else
-                                            self.n_step_out,
-                                            _full_out=True if ((factors is not None) and
-                                                               (self.strategy in ["Recursive", 'DirRec'])) else False,
-                                            _i_model=_i_model if (
-                                                    self.strategy == "Direct") else
-                                            (self.n_step_out +
-                                             _i_model * math.ceil(self.horizon / self.n_step_out) -
-                                             _i_model) if (self.strategy == "DirMo") else None,
-                                            _start_ind=_i_model * math.ceil(self.horizon / self.n_step_out) -
-                                                       _i_model if (self.strategy == "DirMo") else None)
+                                            n_steps_in=self.n_lags + _i_model if (
+                                                        self.strategy == "DirRec") else self.n_lags,
+                                            n_steps_out=self.n_step_out,
+                                            _full_out=True if ((factors is not None) and (
+                                                    self.strategy in ["Recursive", "DirRec"])) else False,
+                                            _i_model=_i_model if (self.strategy in ["Direct", 'DirMo']) else 0,
+                                            _start_ind=_i_model * self.n_step_out - _i_model if (
+                                                        self.strategy == "DirMo") else 0)
 
         # reshape from [samples, timesteps] into [samples, timesteps, features]
         _X_train = _X_train.reshape((_X_train.shape[0], _X_train.shape[1], input_df[0].size))
@@ -506,19 +499,14 @@ class TS_RNN:
             _X_test, _y_test = None, None
         else:
             _X_test, _y_test = split_sequence(input_df,
-                                              n_steps_in=self.n_lags + _i_model if (self.strategy == "DirRec") else
-                                              self.n_lags,
-                                              n_steps_out=self.horizon if (self.strategy in ["Direct", 'DirMo']) else
-                                              self.n_step_out,
-                                              _full_out=True if ((factors is not None) and
-                                                                 (self.strategy in ["Recursive", 'DirRec'])) else False,
-                                              _i_model=_i_model if (
-                                                      self.strategy == "Direct") else
-                                              (self.n_step_out +
-                                               _i_model * math.ceil(self.horizon / self.n_step_out) -
-                                               _i_model) if (self.strategy == "DirMo") else None,
-                                              _start_ind=_i_model * math.ceil(self.horizon / self.n_step_out) -
-                                                         _i_model if (self.strategy == "DirMo") else None)
+                                              n_steps_in=self.n_lags + _i_model if (
+                                                      self.strategy == "DirRec") else self.n_lags,
+                                              n_steps_out=self.n_step_out,
+                                              _full_out=True if ((factors is not None) and (
+                                                      self.strategy in ["Recursive", "DirRec"])) else False,
+                                              _i_model=_i_model if (self.strategy in ["Direct", 'DirMo']) else 0,
+                                              _start_ind=_i_model * self.n_step_out - _i_model if (
+                                                      self.strategy == "DirMo") else 0)
             _X_test = _X_test[-len(test):]
             _y_test = _y_test[-len(test):]
             _X_test = _X_test.reshape((_X_test.shape[0], _X_test.shape[1], self.n_features))
