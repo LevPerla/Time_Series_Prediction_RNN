@@ -52,14 +52,15 @@ class TS_RNN:
 
         # Set model arch
         if rnn_arch is None:
-            self.params = DEFAULT_ARCH
+            logger.warning(f'rnn_arch is not defined. Model will be compiled with default architecture')
+            self.rnn_arch = DEFAULT_ARCH
             self.hp = DEFAULT_HP
         elif (rnn_arch is not None) and (tuner_hp is None):
-            logger.warning(f'tuner_hp is not defined. Model will be trained without tuning')
-            self.params = rnn_arch
+            logger.warning(f'tuner_hp is not defined. Model will be trained without tuning architecture')
+            self.rnn_arch = rnn_arch
             self.hp = None
         else:
-            self.params = rnn_arch
+            self.rnn_arch = rnn_arch
             self.hp = tuner_hp
 
         self.n_lags = n_lags
@@ -193,7 +194,7 @@ class TS_RNN:
         """
         _model = Sequential()
 
-        for layer in self.params['layers']:
+        for layer in self.rnn_arch['layers']:
             if layer[0] == 'Dense':
                 if self.n_features > 1 and (self.n_step_out == 1):
                     _model.add(Dense(self.n_features, **layer[1]))
@@ -230,7 +231,6 @@ class TS_RNN:
             batch_size=36,
             verbose=1,
             validation_split=0,
-            callbacks=None,
             **kwargs):
         """
         Train model
@@ -257,7 +257,6 @@ class TS_RNN:
 
             if (_X_val is None) or (_y_val is None):
                 validation_data = None
-                callbacks = None
             else:
                 validation_data = (_X_val, _y_val)
 
@@ -269,7 +268,6 @@ class TS_RNN:
                                                                  batch_size=batch_size,
                                                                  validation_split=validation_split,
                                                                  validation_data=validation_data,
-                                                                 callbacks=callbacks,
                                                                  shuffle=False,
                                                                  **kwargs
                                                                  )
@@ -300,7 +298,7 @@ class TS_RNN:
     @timeit
     def predict(self, target=None, factors=None, prediction_len=None):
         """
-        Prediction with auto-set method based by params
+        Prediction with auto-set method based by rnn_arch
         :param factors: np.array
         :param target: np.array
         :param prediction_len: int
@@ -345,7 +343,7 @@ class TS_RNN:
             raise AssertionError(f'Use strategy from ["Direct", "Recursive", "MiMo", "DirRec", "DirMo"]')
 
         logger.info(f'[Prediction] End predict by {self.strategy} strategy')
-        return predicted
+        return predicted.flatten()
 
     def _recursive_pred(self, data: np.array, prediction_len: int):
         """
@@ -476,6 +474,10 @@ class TS_RNN:
             factors = factors_train
             val_len = 0
 
+        if isinstance(target, pd.DataFrame) or isinstance(target, pd.Series):
+            self.train_index = target.index
+            target = target.values
+
         # Prepare input
         input_df = target.reshape(-1, 1) if (factors is None) else np.hstack((factors, target.reshape(-1, 1)))
 
@@ -520,20 +522,11 @@ class TS_RNN:
         return _X_train, _y_train, _X_test, _y_test
 
     def forecast(self, prediction_len):
-        predicted = self.predict(factors=np.array(self._last_known_factors),
-                                 target=np.array(self._last_known_target),
-                                 prediction_len=prediction_len)
+        predicted = self.predict(
+            factors=np.array(self._last_known_factors) if self._last_known_factors is not None else None,
+            target=np.array(self._last_known_target),
+            prediction_len=prediction_len)
         return predicted
-
-    def load_model(self, filepath):
-        """
-        A method for loading model from h5 file
-        :param filepath: (str) path to h5 file with model
-        :return: None
-        """
-        print('[Model] Loading model from file %s' % filepath)
-        self.model_list = [{"model_name": f"{self.strategy}_model",
-                            "model": load_model(filepath)}]
 
     def summary(self):
         """
