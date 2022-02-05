@@ -1,4 +1,5 @@
 # Load libs
+import json
 import os
 import math
 import numpy as np
@@ -17,8 +18,8 @@ class TS_RNN:
     """ A class for an building and inferencing an RNN models for time series prediction"""
 
     def __init__(self,
-                 n_lags: int,
-                 horizon: int,
+                 n_lags=None,
+                 horizon=None,
                  rnn_arch=None,
                  strategy="MiMo",
                  n_step_out=1,
@@ -76,12 +77,17 @@ class TS_RNN:
         self.model_list = None
         self.kwargs = kwargs
 
-        self._assert_init_params()
-
-        # compile model
-        self._build_by_stategy()
+        if 'load' not in self.kwargs.keys():
+            self._assert_init_params()
+            # compile model
+            self._build_by_stategy()
 
     def _assert_init_params(self):
+        try:
+            assert (self.n_lags is not None) and (self.horizon is not None)
+        except AssertionError:
+            logger.exception('Define n_lags and horizon')
+            raise AssertionError('Define n_lags and horizon')
         try:
             assert self.strategy in ["Direct", "Recursive", "MiMo", "DirRec", "DirMo"]
         except AssertionError:
@@ -476,9 +482,9 @@ class TS_RNN:
         # Train/ Test split
         train, test = train_test_split(input_df, test_len=val_len)
 
-        self._last_known_target = train[-self.n_lags:, -1]
+        self._last_known_target = train[-self.n_lags:, -1].tolist()
         if factors is not None:
-            self._last_known_factors = train[-self.n_lags:, :-1]
+            self._last_known_factors = train[-self.n_lags:, :-1].tolist()
 
         # split into samples
         _X_train, _y_train = split_sequence(train,
@@ -514,20 +520,20 @@ class TS_RNN:
         return _X_train, _y_train, _X_test, _y_test
 
     def forecast(self, prediction_len):
-        predicted = self.predict(factors=self._last_known_factors,
-                                 target=self._last_known_target,
+        predicted = self.predict(factors=np.array(self._last_known_factors),
+                                 target=np.array(self._last_known_target),
                                  prediction_len=prediction_len)
         return predicted
 
-    # def load_model(self, filepath):
-    #     """
-    #     A method for loading model from h5 file
-    #     :param filepath: (str) path to h5 file with model
-    #     :return: None
-    #     """
-    #     print('[Model] Loading model from file %s' % filepath)
-    #     self.model_list = [{"model_name": f"{self.strategy}_model",
-    #                        "model": load_model(filepath)}]
+    def load_model(self, filepath):
+        """
+        A method for loading model from h5 file
+        :param filepath: (str) path to h5 file with model
+        :return: None
+        """
+        print('[Model] Loading model from file %s' % filepath)
+        self.model_list = [{"model_name": f"{self.strategy}_model",
+                            "model": load_model(filepath)}]
 
     def summary(self):
         """
@@ -543,6 +549,27 @@ class TS_RNN:
         :param save_dir: (str) path to h5 file with model
         :return: None
         """
-        logger.info('[Model Saving] Saving model to file %s' % save_dir)
+        models_folder_path = os.path.join(save_dir, "models")
+        os.makedirs(models_folder_path)
+        logger.info('[Model Saving] Saving model to file %s' % models_folder_path)
+        with open(os.path.join(models_folder_path, 'ts_rnn.json'), 'w') as fp:
+            json.dump({key: value for key, value in self.__dict__.items() if key not in ['hp', 'model_list']}, fp)
+
         for model_id in range(len(self.model_list)):
-            self.model_list[model_id]["model"].save(self.model_list[model_id]["model_name"] + ".h5/" + save_dir)
+            self.model_list[model_id]["model"].save(os.path.join(models_folder_path,
+                                                                 self.model_list[model_id]["model_name"] + ".h5"))
+
+
+def load_ts_rnn(path):
+    with open(os.path.join(path, f'ts_rnn.json')) as json_file:
+        params = json.load(json_file)
+        params.update({'model_list': []})
+    ts_rnn = TS_RNN()
+    ts_rnn.__dict__ = params
+
+    for i, model_name in enumerate(sorted(os.listdir(path))):
+        if '.h5' in model_name:
+            print(model_name)
+            _model = load_model(os.path.join(path, model_name))
+            ts_rnn.model_list.append({"model_name": model_name, "model": _model, 'tuner': None})
+    return ts_rnn
