@@ -22,7 +22,7 @@ python setup.py install
 
 
 ## Documentation
-The library includes one main module ts_rnn: 
+The full documentation have not ready yet. I hope, it will show later.
 
 ### Getting started
 To import TS_RNN model run
@@ -30,7 +30,6 @@ To import TS_RNN model run
 ```python
 from ts_rnn.model import TS_RNN
 ```
-
 
 First of all, we need to set architecture of RNN in config in the way like this:
 ```python
@@ -42,12 +41,9 @@ rnn_arch = {"layers": [
                         ["Dropout", {"rate": 0.2}],
                         ["Dense", {"activation": "linear"}]
                     ]}
-
 ```
-::: warning  
-*Last block always need to be Dense*  
-*Last RNN block need to gave return_sequences: False, another - True*  
-:::
+
+> **WARNING**: *Last RNN block need to gave return_sequences: False, another - True*
 
 
 #### To set the architecture of RNN you can use some of this blocks:
@@ -55,52 +51,144 @@ rnn_arch = {"layers": [
 # LSTM block
 ["LSTM", {Keras layer params}],
 ["GRU", {Keras layer params}],
+["SimpleRNN", {Keras layer params}],
 ["Bidirectional", {Keras layer params}],
 ["Dropout", {Keras layer params}],
 ["Dense", {Keras layer params}]
 ```
 
 ### TS_RNN class has 7 attributes:
-1. model_list – list of Sequential neural network models (internal class of the Keras library);
-2. id – model Number in uuid format, required for saving experiment logs;
-3. n_step_in - length of the input vector;
-4. n_step_out - length of the output vector;
-5. horizon - length of prediction horizon;
-6. n_features - number of time series in the input;
-7. params - description of the model's parameters in Python dictionary format;
-8. test_len - number of data that will be dropped from train data;
-9. loss - Keras loss to train model;
-10. optimizer - Keras optimizer to train model.
+
+<ol>
+<li>n_lags - length of the input vector;</li>
+<li>horizon - length of prediction horizon;</li>
+<li>rnn_arch - description of the model's parameters in Python dictionary format;</li>
+<li>strategy - prediction strategy: "Direct", "Recursive", "MiMo", "DirRec", "DirMo"</li>
+<li>tuner - tupe of Keras.tuner: "RandomSearch", "BayesianOptimization", "Hyperband"</li>
+<li>tuner_hp - keras_tuner.HyperParameters class</li>
+<li>n_step_out - length of the output vector (Need to define only for DirMo strategy);</li>
+<li>loss - Keras loss to train model;</li>
+<li>optimizer - Keras optimizer to train model.</li>
+<li>n_features - number of time series in the input (only for factors forecasting);</li>
+<li>save_dir - dir to save logs</li>
+</ol>
 
 #### You can set model this way:
 ```python
-model = TS_RNN(rnn_arch=rnn_arch,           # dict with model architecture
-               n_step_in=12,                # length of the input vector
-               horizon=TEST_LEN,            # length of prediction horizon
-               test_len=TEST_LEN,           # number of data that will be dropped from train data
-               strategy="MiMo",             # Prediction strategy from ["Direct", "Recursive", "MiMo"]
-               loss="mae",                  # Keras loss
-               optimizer="adam",            # Keras optimizer
+model = TS_RNN(rnn_arch=rnn_arch,  # dict with model architecture
+               n_lags=12,  # length of the input vector
+               horizon=TEST_LEN,  # length of prediction horizon
+               strategy="MiMo",  # Prediction strategy from "Direct", "Recursive", "MiMo", "DirRec", "DirMo"
+               loss="mae",  # Keras loss
+               optimizer="adam",  # Keras optimizer
                n_features=X_train.shape[1]  # also you need to define this if use factors
-              )
+               )
 ```
+
 ### TS_RNN supports 5 methods:
-1. load_model – load weights of a neural network from a file format h5;
-2. fit - train the neural network;
+
+<ol>
+<li>fit - train the neural network;</li>
+<li>predict - predict by the neural network by input;</li>
+<li>forecast - predict by the neural network by last train values;</li>
+<li>summary - print NNs architecture</li>
+<li>save - save model files to dict</li>
+</ol>
+
+FIT
+
 ```python
 my_callbacks = [callbacks.EarlyStopping(patience=30, monitor='val_loss')]
 
-model.fit(factors=factors_std,          # np.array with factors time series
-          target=target,                # np.array with target time series
-          epochs=100,                   # num epoch to train
-          batch_size=12,                # batch_size
-          callbacks=my_callbacks,       # Keras callbacks
-          save_dir="../your_folder",    # folder to image save 
-          verbose=2)                    # verbose
+model.fit(factors_train=factors_val,  # np.array with factors time series
+          target_train=target_val,  # np.array with target time series
+          factors_val=factors_val,  # np.array with factors time series
+          target_val=target_val,  # np.array with target time series
+          epochs=100,  # num epoch to train
+          batch_size=12,  # batch_size
+          callbacks=my_callbacks,  # Keras callbacks
+          save_dir="../your_folder",  # folder to image save 
+          verbose=2)  # verbose
 ```
-3. predict - predict using a neural network, using two methods:  
+
+PREDICT
+
 ```python
 predicted = model.predict(factors=factors_to_pred,
                           target=target_to_pred,
                           prediction_len=len(y_test))
+```
+
+FORECAST
+
+```python
+predicted = model.forecast(prediction_len=HORIZON)
+```
+
+SUMMARY
+
+```python
+model.summary()
+```
+
+```python
+Possible
+out:
+Model: "sequential"
+_________________________________________________________________
+Layer(type)
+Output
+Shape
+Param  # 
+== == == == == == == == == == == == == == == == == == == == == == == == == == == == == == == == =
+lstm(LSTM)(None, 64)
+16896
+
+dropout(Dropout)(None, 64)
+0
+
+dense(Dense)(None, 12)
+780
+
+== == == == == == == == == == == == == == == == == == == == == == == == == == == == == == == == =
+```
+
+SAVE
+
+```python
+model.save(model_folder)
+```
+
+Also you may load TS_RNN model from folder
+
+```python
+from ts_rnn.model import load_ts_rnn
+
+model = load_ts_rnn(os.path.join(model_folder, 'models'))
+```
+
+### Simple example of usage:
+
+> **Info**: For better performance use MinMaxScaler and Deseasonalizer before fitting
+
+```python
+from sklearn.model_selection import train_test_split
+from ts_rnn.model import TS_RNN
+import pandas as pd
+
+HORIZON = 12
+
+data_url = "https://raw.githubusercontent.com/LevPerla/Time_Series_Prediction_RNN/master/data/series_g.csv"
+target = pd.read_csv(data_url, sep=";").series_g
+target_train, target_test = train_test_split(target, test_size=HORIZON, shuffle=False)
+
+model = TS_RNN(n_lags=12, horizon=HORIZON)
+model.fit(target_train=target_train,
+          target_val=target_test,
+          epochs=40,
+          batch_size=12,
+          verbose=1)
+
+model.summary()
+predicted = model.predict(target=target_train[-model.n_lags:], prediction_len=HORIZON)
 ```
