@@ -131,28 +131,6 @@ SUMMARY
 model.summary()
 ```
 
-```python
-Possible
-out:
-Model: "sequential"
-_________________________________________________________________
-Layer(type)
-Output
-Shape
-Param  # 
-== == == == == == == == == == == == == == == == == == == == == == == == == == == == == == == == =
-lstm(LSTM)(None, 64)
-16896
-
-dropout(Dropout)(None, 64)
-0
-
-dense(Dense)(None, 12)
-780
-
-== == == == == == == == == == == == == == == == == == == == == == == == == == == == == == == == =
-```
-
 SAVE
 
 ```python
