@@ -23,7 +23,7 @@ def timeit(f):
 
 
 #################################          Metrics calculation             #############################################
-def metrics_eval(y_true, y_pred, print_result=True, save_dir=None):
+def metrics_eval(y_true, y_pred, print_result=True, save_dir=None, name='metrics'):
     """
     Evaluate MAE, MSE, SMAPE, RMSE, MAPE metrics
     :param y_true: np.array of true values
@@ -59,7 +59,7 @@ def metrics_eval(y_true, y_pred, print_result=True, save_dir=None):
             print(f"{key}: {metrics_dict[key]}")
 
     if save_dir is not None:
-        with open(save_dir + '/metrics.txt', 'w') as record_file:
+        with open(os.path.join(save_dir, name + '.txt'), 'w') as record_file:
             for key in metrics_dict.keys():
                 record_file.write(f"{key}: {metrics_dict[key]}\n")
 
@@ -110,6 +110,60 @@ def train_test_pred_plot(train, test, predicted, save_dir=None, show=True):
     plt.legend()
     if save_dir is not None:
         save_image(save_dir, "test_predicted")
+    if show:
+        plt.show()
+    plt.close()
+
+
+#################################          Plot train/val/test/val_pred/test_pred       #############################################
+def train_val_test_pred_plot(train, val, test, val_pred, test_pred, save_dir=None, show=True):
+    # train_test_pred_plot
+    plt.plot(train, label="Train")
+    plt.plot(val, label="Val")
+    plt.plot(test, label="Test")
+
+    if isinstance(val_pred, dict):
+        for key in val_pred.keys():
+            plt.plot(val_pred[key]["Val_pred"], label=key)
+    else:
+        plt.plot(val_pred, label="Val_pred")
+
+    if isinstance(test_pred, dict):
+        for key in test_pred.keys():
+            plt.plot(test_pred[key]["Test_pred"], label=key)
+    else:
+        plt.plot(test_pred, label="Test_pred")
+
+    plt.title('train_val_test_predicted')
+    plt.legend()
+    if save_dir is not None:
+        save_image(save_dir, "train_val_test_predicted")
+    if show:
+        plt.show()
+    plt.close()
+
+    # val_test_pred_plot
+    if len(train) > 20:
+        plt.plot(train[-20:], label="Train")
+    plt.plot(val, label="Val")
+    plt.plot(test, label="Test")
+
+    if isinstance(val_pred, dict):
+        for key in val_pred.keys():
+            plt.plot(val_pred[key]["Val_pred"], label=key)
+    else:
+        plt.plot(val_pred, label="Val_pred")
+
+    if isinstance(test_pred, dict):
+        for key in test_pred.keys():
+            plt.plot(test_pred[key]["Test_pred"], label=key)
+    else:
+        plt.plot(test_pred, label="Test_pred")
+
+    plt.title('val_test_predicted')
+    plt.legend()
+    if save_dir is not None:
+        save_image(save_dir, "val_test_predicted")
     if show:
         plt.show()
     plt.close()
