@@ -49,6 +49,7 @@ class TS_RNN:
             logger.setLevel(logging.DEBUG)
             handler.setFormatter(logging.Formatter('[%(levelname)s] - %(asctime)s - %(message)s'))
             logger.addHandler(handler)
+            self.logger = logger
 
         # Set model arch
         if rnn_arch is None:

@@ -43,7 +43,7 @@ def metrics_eval(y_true, y_pred, print_result=True, save_dir=None, name='metrics
     # SMAPE is an alternative for MAPE when there are zeros in the testing data. It
     # scales the absolute percentage by the sum of forecast and observed values
     SMAPE = np.mean(np.abs((y_true - y_pred) / ((y_true + y_pred) / 2))) * 100
-    metrics_dict['Scaled Mean absolute percentage error'] = round(SMAPE, 3)
+    metrics_dict['Symmetric Mean absolute percentage error'] = round(SMAPE, 3)
 
     # Calculate the Root Mean Squared Error
     rmse = np.sqrt(mean_squared_error(y_true, y_pred))
