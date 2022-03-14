@@ -9,7 +9,6 @@ from ts_rnn.logger import logger
 from ts_rnn.config import DEFAULT_HP, DEFAULT_ARCH
 from tensorflow.keras.models import Sequential, load_model
 from ts_rnn.utils import split_sequence, train_test_split, history_plot, timeit
-from sklearn.utils.validation import _assert_all_finite
 from keras_tuner import RandomSearch, BayesianOptimization, Hyperband
 from tensorflow.keras.layers import Dense, Dropout, LSTM, GRU, Bidirectional, BatchNormalization, SimpleRNN, RNN
 
@@ -44,20 +43,29 @@ class TS_RNN:
         :param save_dir: (str) path to saving history plot
         """
         # Set logger
+        # Delete old handlers
+        for hdle in logger.handlers[:]:
+            if isinstance(hdle, logging.FileHandler):
+                hdle.close()
+                logger.removeHandler(hdle)
+        logger.setLevel(logging.DEBUG)
+
+        # Set new handler
         if save_dir is not None:
             handler = logging.FileHandler(os.path.join(save_dir, "ts_rnn.log"), mode='w')
-            logger.setLevel(logging.DEBUG)
-            handler.setFormatter(logging.Formatter('[%(levelname)s] - %(asctime)s - %(message)s'))
-            logger.addHandler(handler)
-            self.logger = logger
+        else:
+            handler = logging.StreamHandler(sys.stdout)
+        handler.setFormatter(logging.Formatter('[%(levelname)s] - %(asctime)s - %(message)s'))
+        logger.addHandler(handler)
+        self.logger = logger
 
         # Set model arch
         if rnn_arch is None:
-            logger.warning(f'rnn_arch is not defined. Model will be compiled with default architecture')
+            self.logger.warning(f'rnn_arch is not defined. Model will be compiled with default architecture')
             self.rnn_arch = DEFAULT_ARCH
             self.hp = DEFAULT_HP
         elif (rnn_arch is not None) and (tuner_hp is None):
-            logger.warning(f'tuner_hp is not defined. Model will be trained without tuning architecture')
+            self.logger.warning(f'tuner_hp is not defined. Model will be trained without tuning architecture')
             self.rnn_arch = rnn_arch
             self.hp = None
         else:
@@ -75,7 +83,6 @@ class TS_RNN:
         self.tuner = tuner
         self._last_known_target = None
         self._last_known_factors = None
-        self.prediction_len = None
         self.model_list = None
         self.kwargs = kwargs
 
@@ -88,25 +95,25 @@ class TS_RNN:
         try:
             assert (self.n_lags is not None) and (self.horizon is not None)
         except AssertionError:
-            logger.exception('Define n_lags and horizon')
+            self.logger.exception('Define n_lags and horizon')
             raise AssertionError('Define n_lags and horizon')
         try:
             assert self.strategy in ["Direct", "Recursive", "MiMo", "DirRec", "DirMo"]
         except AssertionError:
-            logger.exception('Use strategy from ["Direct", "Recursive", "MiMo", "DirRec", "DirMo"]')
+            self.logger.exception('Use strategy from ["Direct", "Recursive", "MiMo", "DirRec", "DirMo"]')
             raise AssertionError('Use strategy from ["Direct", "Recursive", "MiMo", "DirRec", "DirMo"]')
 
         try:
             assert self.tuner in ["RandomSearch", "BayesianOptimization", "Hyperband"]
         except AssertionError:
-            logger.exception('Use tuner from ["RandomSearch", "BayesianOptimization", "Hyperband"]')
+            self.logger.exception('Use tuner from ["RandomSearch", "BayesianOptimization", "Hyperband"]')
             raise AssertionError('Use tuner from ["RandomSearch", "BayesianOptimization", "Hyperband"]')
 
         if self.strategy in ["Direct", "Recursive", "DirRec"]:
             assert self.n_step_out == 1, "For Direct, Recursive and DirRec strategies n_step_out must be 1"
 
         if self.strategy == "DirMo" and (self.n_step_out == 1):
-            logger.warning(f'n_step_out == 1. Strategy DirMo equal to Direct. Please set n_step_out')
+            self.logger.warning(f'n_step_out == 1. Strategy DirMo equal to Direct. Please set n_step_out')
 
     def _build_by_stategy(self):
         """
@@ -214,7 +221,7 @@ class TS_RNN:
             elif layer[0] == 'BatchNormalization':
                 _model.add(BatchNormalization(scale=False, **layer[1]))
             else:
-                logger.critical(f"TS_RNN doesn't support layer type {layer[0]}")
+                self.logger.critical(f"TS_RNN doesn't support layer type {layer[0]}")
                 raise AssertionError(f"TS_RNN doesn't support layer type {layer[0]}")
 
         _model.compile(loss=self.loss, optimizer=self.optimizer)
@@ -253,8 +260,8 @@ class TS_RNN:
                                                                     factors_val=factors_val,
                                                                     _i_model=model_id)
 
-            logger.info(f'[Training] Training {self.model_list[model_id]["model_name"]} started on '
-                        f'%s epochs, %s batch size' % (epochs, batch_size))
+            self.logger.info(f'[Training] Training {self.model_list[model_id]["model_name"]} started on '
+                             f'%s epochs, %s batch size' % (epochs, batch_size))
 
             if (_X_val is None) or (_y_val is None):
                 validation_data = None
@@ -293,7 +300,7 @@ class TS_RNN:
                 self.model_list[model_id]["model"] = self.model_list[model_id]["tuner"].get_best_models(num_models=1)[0]
                 if self.strategy == "DirRec":
                     self.n_lags = true_n_lags
-        logger.info('[Training] Training ended')
+        self.logger.info('[Training] Training ended')
         return self
 
     @timeit
@@ -323,7 +330,7 @@ class TS_RNN:
             target = target.values
         input_df = target.reshape(-1, 1) if factors is None else np.hstack((factors, target.reshape(-1, 1)))
 
-        logger.info(f'[Prediction] Start predict by {self.strategy} strategy')
+        self.logger.info(f'[Prediction] Start predict by {self.strategy} strategy')
         # if Multi input Multi-out prediction
         if self.strategy == "MiMo":
             predicted = self._mimo_pred(input_df)
@@ -340,10 +347,10 @@ class TS_RNN:
         elif self.strategy == 'DirMo':
             predicted = self._dirmo_pred(input_df)
         else:
-            logger.critical(f'Use strategy from ["Direct", "Recursive", "MiMo", "DirRec", "DirMo"]')
+            self.logger.critical(f'Use strategy from ["Direct", "Recursive", "MiMo", "DirRec", "DirMo"]')
             raise AssertionError(f'Use strategy from ["Direct", "Recursive", "MiMo", "DirRec", "DirMo"]')
 
-        logger.info(f'[Prediction] End predict by {self.strategy} strategy')
+        self.logger.info(f'[Prediction] End predict by {self.strategy} strategy')
         return predicted.flatten()
 
     def _recursive_pred(self, data: np.array, prediction_len: int):
@@ -545,7 +552,7 @@ class TS_RNN:
         """
         models_folder_path = os.path.join(save_dir, "models")
         os.makedirs(models_folder_path)
-        logger.info('[Model Saving] Saving model to file %s' % models_folder_path)
+        self.logger.info('[Model Saving] Saving model to file %s' % models_folder_path)
         with open(os.path.join(models_folder_path, 'ts_rnn.json'), 'w') as fp:
             json.dump({key: value for key, value in self.__dict__.items() if key not in ['hp', 'model_list']}, fp)
 
