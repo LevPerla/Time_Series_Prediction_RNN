@@ -4,7 +4,7 @@ import random
 import collections
 from sklearn.metrics import mean_squared_error, mean_absolute_error
 import matplotlib.pyplot as plt
-from src.utils import save_image
+from utils import save_image
 
 
 ####################################         feature_importance         ################################################
