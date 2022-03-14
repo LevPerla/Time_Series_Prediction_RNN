@@ -1,14 +1,15 @@
 from ts_rnn.model import TS_RNN
 import numpy as np
 import shutil
+import pandas as pd
 
 
 def test_model_fit():
     PRED_LEN = 4
-    target = np.arange(1, 12).reshape(-1, 1)
+    target = pd.DataFrame(np.arange(1, 12))
     f1 = (np.arange(1, len(target) + 1) * 10).reshape(-1, 1)
     f2 = (np.arange(1, len(target) + 1) ** 2).reshape(-1, 1)
-    factors_df = np.hstack((f1, f2))
+    factors_df = pd.DataFrame(np.hstack((f1, f2)))
 
     for strategy in ["Direct", "Recursive", "MiMo", 'DirRec', "DirMo"]:
         for factors in [True, False]:
