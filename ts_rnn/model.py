@@ -2,6 +2,7 @@
 import json
 import os
 import math
+import sys
 import numpy as np
 import pandas as pd
 import logging
@@ -251,14 +252,34 @@ class TS_RNN:
         :param callbacks: callbacks for EarlyStopping
         :return: self
         """
+        # Check input
+        target_train, target_val, factors_train, factors_val = self._assert_fit_input(target_train, target_val,
+                                                                                      factors_train, factors_val)
         true_n_lags = self.n_lags
         for model_id in range(len(self.model_list)):
+            if target_train.shape[1] > 1:
+                self.logger.info(f'[Training] Target is a multiple time series, preparing global model')
+            else:
+                self.logger.info(f'[Training] target is a single time series, preparing local model')
 
-            _X_train, _y_train, _X_val, _y_val = self._data_process(target_train=target_train,
-                                                                    target_val=target_val,
-                                                                    factors_train=factors_train,
-                                                                    factors_val=factors_val,
-                                                                    _i_model=model_id)
+            _X_train, _y_train, _X_val, _y_val = None, None, None, None
+            for i in range(target_train.shape[1]):
+                _X_train_i, _y_train_i, _X_val_i, _y_val_i = self._data_process(
+                    target_train=target_train.iloc[:, i].to_frame(),
+                    target_val=target_val.iloc[:, i].to_frame(),
+                    factors_train=factors_train,
+                    factors_val=factors_val,
+                    _i_model=model_id)
+                if _X_train is None:
+                    _X_train = _X_train_i
+                    _y_train = _y_train_i
+                    _X_val = _X_val_i
+                    _y_val = _y_val_i
+                else:
+                    _X_train = np.vstack((_X_train, _X_train_i))
+                    _y_train = np.vstack((_y_train, _y_train_i))
+                    _X_val = np.vstack((_X_val, _X_val_i))
+                    _y_val = np.vstack((_y_val, _y_val_i))
 
             self.logger.info(f'[Training] Training {self.model_list[model_id]["model_name"]} started on '
                              f'%s epochs, %s batch size' % (epochs, batch_size))
@@ -303,8 +324,45 @@ class TS_RNN:
         self.logger.info('[Training] Training ended')
         return self
 
+    def _assert_fit_input(self, target_train, target_val, factors_train, factors_val):
+        assert isinstance(target_train, (pd.Series, pd.DataFrame)), 'target_train need to be pd.Series or pd.DataFrame'
+        assert isinstance(target_val, (
+            pd.Series, pd.DataFrame)) or target_val is None, 'target_val need to be pd.Series or pd.DataFrame'
+
+        assert isinstance(factors_train, (
+            pd.Series, pd.DataFrame)) or factors_train is None, 'factors_train need to be pd.Series or pd.DataFrame'
+        assert isinstance(factors_val, (
+            pd.Series, pd.DataFrame)) or factors_val is None, 'factors_val need to be pd.Series or pd.DataFrame'
+
+        if isinstance(target_train, pd.Series):
+            target_train = target_train.to_frame()
+        if isinstance(target_val, pd.Series):
+            target_val = target_val.to_frame()
+        if isinstance(factors_train, pd.Series):
+            factors_train = factors_train.to_frame()
+        if isinstance(factors_val, pd.Series):
+            factors_val = factors_val.to_frame()
+
+        if target_val is not None:
+            assert list(target_train.columns) == list(target_val.columns), 'names of target_train != target_val'
+
+        self.target_names = list(target_train.columns)
+        self.train_index = target_train.index
+
+        if factors_train is not None:
+            assert list(factors_train.columns) == list(factors_val.columns), 'names of factors_train != factors_val'
+            assert list(factors_train.index) == list(target_train.index), 'index of target_train != factors_train'
+            self.factors_names = list(factors_train.columns)
+        else:
+            self.factors_names = None
+
+        if (factors_val is not None) and (target_val is not None):
+            assert list(target_val.index) == list(factors_val.index), 'index of target_val != factors_val'
+
+        return target_train, target_val, factors_train, factors_val
+
     @timeit
-    def predict(self, target=None, factors=None, prediction_len=None):
+    def predict(self, target, prediction_len, factors=None):
         """
         Prediction with auto-set method based by rnn_arch
         :param factors: np.array
@@ -312,23 +370,23 @@ class TS_RNN:
         :param prediction_len: int
         :return: np.array of predictions
         """
-
-        # Some tests
-        assert target is not None
-        assert prediction_len is not None
-        self.prediction_len = prediction_len
+        assert ((factors is not None) and (self.factors_names is not None)) or \
+               ((factors is None) and (
+                       self.factors_names is None)), f"model was fitted with range of factors: {self.factors_names}. Add it to factors attribute"
 
         if factors is not None:
-            assert factors.shape[0] == self.n_lags
-            assert factors.shape[1] == self.n_features - 1
-        else:
-            _assert_all_finite(target)
-            assert len(target) == self.n_lags
+            assert factors.shape[
+                       0] == self.n_lags, f'factors to predict need to have model.n_lags lengths: {self.n_lags}'
+            assert factors.shape[1] == self.n_features - 1, f'factors length need to be {self.n_features - 1}'
+            assert list(factors.columns) == self.factors_names, f'factors names need to be {self.factors_names}'
+        assert len(target) == self.n_lags, f'target to predict need to have model.n_lags lengths: {self.n_lags}'
 
         # Prepare input
         if isinstance(target, pd.Series):
+            target = target.values.reshape(-1, 1)
+        elif isinstance(target, pd.DataFrame):
             target = target.values
-        input_df = target.reshape(-1, 1) if factors is None else np.hstack((factors, target.reshape(-1, 1)))
+        input_df = target if factors is None else np.hstack((factors, target))
 
         self.logger.info(f'[Prediction] Start predict by {self.strategy} strategy')
         # if Multi input Multi-out prediction
@@ -339,7 +397,7 @@ class TS_RNN:
             predicted = self._direct_pred(input_df)
         # if Recursive prediction
         elif self.strategy == "Recursive":
-            predicted = self._recursive_pred(input_df, prediction_len=self.prediction_len)
+            predicted = self._recursive_pred(input_df, prediction_len=prediction_len)
         # if DirRec prediction
         elif self.strategy == 'DirRec':
             predicted = self._dirrec_pred(input_df)
@@ -463,69 +521,67 @@ class TS_RNN:
         :param factors:
         :param _i_model: number of model from Direct strategy
         """
-        if (target_val is not None) and (factors_val is not None):
-            target = np.concatenate([target_train, target_val]).flatten()
-            factors = np.concatenate([factors_train, factors_val])
-            val_len = target_val.shape[0]
-        elif (target_val is not None) and (factors_val is None) and (self.n_features != 1):
-            logger.warning(f'Validation factors is not defined. Validation will not be used')
-            target = target_train
-            factors = factors_train
-            val_len = 0
-        elif (target_val is not None) and (factors_val is None) and (self.n_features == 1):
-            target = np.concatenate([target_train, target_val]).flatten()
-            factors = factors_train
-            val_len = target_val.shape[0]
-        elif target_val is None:
-            logger.warning(f'Validation target is not defined. Validation will not be used')
-            target = target_train
-            factors = factors_train
-            val_len = 0
+        if (factors_train is None) and (factors_val is not None):
+            self.logger.critical(f'factors_train is not defined, but factors_val exists')
+            raise AssertionError(f'factors_train is not defined, but factors_val exists')
 
-        if isinstance(target, pd.DataFrame) or isinstance(target, pd.Series):
-            self.train_index = target.index
-            target = target.values
+        if (target_train is None) and (target_val is not None):
+            self.logger.critical(f'target_train is not defined, but target_val exists')
+            raise AssertionError(f'target_train is not defined, but target_val exists')
+
+        # if validation with factors
+        if (target_val is not None) and (factors_val is not None):
+            target = pd.concat([target_train, target_val], axis=0)
+            factors = pd.concat([factors_train, factors_val], axis=0)
+            val_len = target_val.shape[0]
+        # if validation without factors
+        elif (target_val is not None) and (factors_val is None) and (factors_train is None):
+            target = pd.concat([target_train, target_val], axis=0)
+            factors = None
+            val_len = target_val.shape[0]
+        else:
+            self.logger.warning(f'Validation target or factors is not defined. Validation will not be used')
+            target = target_train
+            factors = factors_train
+            val_len = 0
 
         # Prepare input
-        input_df = target.reshape(-1, 1) if (factors is None) else np.hstack((factors, target.reshape(-1, 1)))
+        input_df = target if factors_train is None else pd.concat([factors, target], axis=1)
 
-        # Train/ Test split
-        train, test = train_test_split(input_df, test_len=val_len)
+        try:
+            assert input_df.shape[
+                       1] == self.n_features, 'Shape of input != model.n_features. Please, check factors frame'
+        except AssertionError:
+            self.logger.exception(
+                f'Define n_features in init of TS_RNN, factors given: {input_df.shape[1]}, n_features: {self.n_features}')
+            raise AssertionError(
+                f'Define n_features in init of TS_RNN, factors given: {input_df.shape[1]}, n_features: {self.n_features}')
 
-        self._last_known_target = train[-self.n_lags:, -1].tolist()
-        if factors is not None:
-            self._last_known_factors = train[-self.n_lags:, :-1].tolist()
+        if factors_train is not None:
+            self._last_known_factors = factors_train.iloc[-self.n_lags:, :-1]
 
         # split into samples
-        _X_train, _y_train = split_sequence(train,
+        _X_train, _y_train = split_sequence(input_df.values,
                                             n_steps_in=self.n_lags + _i_model if (
-                                                        self.strategy == "DirRec") else self.n_lags,
+                                                    self.strategy == "DirRec") else self.n_lags,
                                             n_steps_out=self.n_step_out,
                                             _full_out=True if ((factors is not None) and (
                                                     self.strategy in ["Recursive", "DirRec"])) else False,
                                             _i_model=_i_model if (self.strategy in ["Direct", 'DirMo']) else 0,
                                             _start_ind=_i_model * self.n_step_out - _i_model if (
-                                                        self.strategy == "DirMo") else 0)
-
-        # reshape from [samples, timesteps] into [samples, timesteps, features]
-        _X_train = _X_train.reshape((_X_train.shape[0], _X_train.shape[1], input_df[0].size))
-
-        # prepare X_test and y_test
+                                                    self.strategy == "DirMo") else 0)
         if val_len == 0:
             _X_test, _y_test = None, None
         else:
-            _X_test, _y_test = split_sequence(input_df,
-                                              n_steps_in=self.n_lags + _i_model if (
-                                                      self.strategy == "DirRec") else self.n_lags,
-                                              n_steps_out=self.n_step_out,
-                                              _full_out=True if ((factors is not None) and (
-                                                      self.strategy in ["Recursive", "DirRec"])) else False,
-                                              _i_model=_i_model if (self.strategy in ["Direct", 'DirMo']) else 0,
-                                              _start_ind=_i_model * self.n_step_out - _i_model if (
-                                                      self.strategy == "DirMo") else 0)
-            _X_test = _X_test[-len(test):]
-            _y_test = _y_test[-len(test):]
+            _X_test = _X_train[-val_len:]
+            _y_test = _y_train[-val_len:]
             _X_test = _X_test.reshape((_X_test.shape[0], _X_test.shape[1], self.n_features))
+
+            _X_train = _X_train[:-val_len]
+            _y_train = _y_train[:-val_len]
+
+        # reshape from [samples, timesteps] into [samples, timesteps, features]
+        _X_train = _X_train.reshape((_X_train.shape[0], _X_train.shape[1], self.n_features))
 
         return _X_train, _y_train, _X_test, _y_test
 
