@@ -116,7 +116,7 @@ def train_test_pred_plot(train, test, predicted, save_dir=None, show=True):
 
 
 #################################          Plot train/val/test/val_pred/test_pred       #############################################
-def train_val_test_pred_plot(train, val, test, val_pred, test_pred, save_dir=None, show=True):
+def train_val_test_pred_plot(train, val, test, val_pred, test_pred, save_dir=None, show=True, name_add=''):
     # train_test_pred_plot
     plt.plot(train, label="Train")
     plt.plot(val, label="Val")
@@ -137,7 +137,7 @@ def train_val_test_pred_plot(train, val, test, val_pred, test_pred, save_dir=Non
     plt.title('train_val_test_predicted')
     plt.legend()
     if save_dir is not None:
-        save_image(save_dir, "train_val_test_predicted")
+        save_image(save_dir, f"train_val_test_predicted_{name_add}")
     if show:
         plt.show()
     plt.close()
@@ -163,7 +163,7 @@ def train_val_test_pred_plot(train, val, test, val_pred, test_pred, save_dir=Non
     plt.title('val_test_predicted')
     plt.legend()
     if save_dir is not None:
-        save_image(save_dir, "val_test_predicted")
+        save_image(save_dir, f"val_test_predicted_{name_add}")
     if show:
         plt.show()
     plt.close()
