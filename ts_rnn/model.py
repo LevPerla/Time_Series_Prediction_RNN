@@ -610,7 +610,9 @@ class TS_RNN:
         os.makedirs(models_folder_path)
         self.logger.info('[Model Saving] Saving model to file %s' % models_folder_path)
         with open(os.path.join(models_folder_path, 'ts_rnn.json'), 'w') as fp:
-            json.dump({key: value for key, value in self.__dict__.items() if key not in ['hp', 'model_list']}, fp)
+            json.dump({key: value for key, value in self.__dict__.items() if
+                       key not in ['hp', 'model_list', 'logger', '_last_known_target', '_last_known_factors',
+                                   'train_index']}, fp)
 
         for model_id in range(len(self.model_list)):
             self.model_list[model_id]["model"].save(os.path.join(models_folder_path,
@@ -621,7 +623,7 @@ def load_ts_rnn(path):
     with open(os.path.join(path, f'ts_rnn.json')) as json_file:
         params = json.load(json_file)
         params.update({'model_list': []})
-    ts_rnn = TS_RNN()
+    ts_rnn = TS_RNN(load=True)
     ts_rnn.__dict__ = params
 
     for i, model_name in enumerate(sorted(os.listdir(path))):
