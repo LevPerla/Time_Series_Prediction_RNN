@@ -22,7 +22,7 @@ python setup.py install
 
 
 ## Documentation
-The full documentation have not ready yet. I hope, it will show later.
+The full documentation have not ready yet. I hope, it will be shown later.
 
 ### Getting started
 To import TS_RNN model run
