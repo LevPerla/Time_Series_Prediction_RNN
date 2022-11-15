@@ -1,9 +1,24 @@
 # Time_Series_Prediction_RNN
 
+![code-size][code-size]
+![license][license]
+
+[code-size]: https://img.shields.io/github/languages/code-size/LevPerla/Time_Series_Prediction_RNN
+
+[license]: https://img.shields.io/badge/license-MIT-green
+
+## Requirements
+
+ts_rnn requires the following to run:
+
+* [Python](node) 3.7.3+
+
 ## Installation
 
 ### From Github
-you could install the latest version directly from Github:  
+
+You could install the latest version directly from Github:
+
 ```sh
 pip install https://github.com/LevPerla/Time_Series_Prediction_RNN/archive/master.zip
 ```
@@ -22,7 +37,8 @@ python setup.py install
 
 
 ## Documentation
-The full documentation have not ready yet. I hope, it will show later.
+
+The full documentation haven't ready yet. I hope, it will show later.
 
 ### Getting started
 To import TS_RNN model run
@@ -117,12 +133,6 @@ PREDICT
 predicted = model.predict(factors=factors_to_pred,
                           target=target_to_pred,
                           prediction_len=len(y_test))
-```
-
-FORECAST
-
-```python
-predicted = model.forecast(prediction_len=HORIZON)
 ```
 
 SUMMARY
