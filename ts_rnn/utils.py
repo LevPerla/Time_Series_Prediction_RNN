@@ -1,6 +1,5 @@
 #################################           Load libs                      #############################################
 import matplotlib.pyplot as plt
-from itertools import product
 from ts_rnn.logger import logger
 import time
 import numpy as np
@@ -201,58 +200,6 @@ def set_seed(seed_value):
     # tf.compat.v1.keras.backend.set_session(sess)
 
 
-#################################          config_generator                #############################################
-def config_generator(new_config, config):
-    '''
-
-    '''
-
-    # Convert dict to [full_key, value]
-    # [
-    #  [[key11, key12..], value1],
-    #  [[key21, key22..], value2],
-    # ..]
-
-    dict_to_list = {}
-
-    def read_new_dict(new_dict, parents):
-        if not isinstance(new_dict, dict) or len(new_dict) == 0:
-            dict_to_list[parents] = new_dict
-            return None
-
-        for curr_parent in new_dict:
-            read_new_dict(new_dict[curr_parent], parents + (curr_parent,))
-
-    read_new_dict(new_config, ())
-
-    for full_key, value in list(dict_to_list.items()):
-        temp_config = config
-
-        for key in full_key[:-1]:
-            if key in temp_config:
-                temp_config = temp_config[key]
-            else:
-                temp_config[key] = {}
-                temp_config = temp_config[key]
-
-        if isinstance(value, list) or isinstance(value, tuple):
-            assert len(value)
-            temp_config[full_key[-1]] = value[0]
-        else:
-            temp_config[full_key[-1]] = value
-            del dict_to_list[full_key]
-
-    for values in product(*dict_to_list.values()):
-        for ind, full_key in enumerate(dict_to_list):
-            temp_config = config
-
-            for key in full_key[:-1]:
-                temp_config = temp_config[key]
-
-            temp_config[full_key[-1]] = values[ind]
-        yield config
-
-
 #################################          split_sequence                  #############################################
 def split_sequence(data, n_steps_in, n_steps_out, _full_out=False, _i_model=0, _start_ind=0):
     """
@@ -304,7 +251,7 @@ def train_test_split(data, test_len):
         return data, None
     return data[:-test_len], data[-test_len:]
 
-
+#################################             history_plot                 #############################################
 def history_plot(history, save_dir=None, show=True):
     plt.subplot(212)
     plt.plot(history.history["loss"], label="Train")
