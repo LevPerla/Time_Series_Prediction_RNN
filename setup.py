@@ -19,9 +19,9 @@ setup(
     packages=find_packages(),
     url='http://https://github.com/LevPerla/Time_Series_Prediction_RNN',
     license="MIT",
-    python_requires="3.7.3",
+    python_requires=">= 3.7.3",
     install_requires=requirements,
-    keywords="keras data-science data-analysis python jupyter ipython",
+    keywords="rnn time-series keras data-science data-analysis python ",
     long_description=long_description,
     long_description_content_type="text/markdown",
 )
