@@ -15,6 +15,14 @@ ts_rnn requires the following to run:
 
 ## Installation
 
+### From pip
+
+You could install the latest version from PyPi:
+
+```sh
+pip install ts-rnn
+```
+
 ### From Github
 
 You could install the latest version directly from Github:

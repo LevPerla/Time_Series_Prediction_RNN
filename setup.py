@@ -12,7 +12,7 @@ with (source_root / "requirements.txt").open(encoding="utf8") as f:
 
 setup(
     name='ts_rnn',
-    version='0.2.1',
+    version='0.2.11',
     author="Lev Perla",
     author_email="levperla@mail.ru",
     description='Package to forecast time series with recurrent neural network',
