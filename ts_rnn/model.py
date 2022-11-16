@@ -9,7 +9,7 @@ import logging
 from ts_rnn.logger import logger
 from ts_rnn.config import DEFAULT_HP, DEFAULT_ARCH
 from tensorflow.keras.models import Sequential, load_model
-from ts_rnn.utils import split_sequence, train_test_split, history_plot, timeit
+from ts_rnn.utils import split_sequence, history_plot, timeit
 from keras_tuner import RandomSearch, BayesianOptimization, Hyperband
 from tensorflow.keras.layers import Dense, Dropout, LSTM, GRU, Bidirectional, BatchNormalization, SimpleRNN, RNN
 

@@ -1,6 +1,4 @@
 #################################           Load libs                      #############################################
-
-from sklearn.metrics import mean_squared_error, mean_absolute_error
 import matplotlib.pyplot as plt
 from itertools import product
 from ts_rnn.logger import logger
@@ -20,6 +18,18 @@ def timeit(f):
         return result
 
     return timed
+
+
+#################################              mae                         #############################################
+def mean_absolute_error(y_true, y_pred):
+    mae = np.absolute(np.subtract(y_true, y_pred)).mean()
+    return mae
+
+
+#################################              mse                         #############################################
+def mean_squared_error(y_true, y_pred):
+    mse = np.square(np.subtract(y_true, y_pred)).mean()
+    return mse
 
 
 #################################          Metrics calculation             #############################################
