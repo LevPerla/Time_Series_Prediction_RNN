@@ -324,7 +324,8 @@ class TS_RNN:
                 if self.strategy == "DirRec":
                     self.n_lags = true_n_lags
 
-        shutil.rmtree(os.path.join(self.save_dir, 'TS_RNN_tuner_log'), ignore_errors=True)
+        if self.save_dir is not None:
+            shutil.rmtree(os.path.join(self.save_dir, 'TS_RNN_tuner_log'), ignore_errors=True)
         self.logger.info('[Training] Training ended')
         return self
 
