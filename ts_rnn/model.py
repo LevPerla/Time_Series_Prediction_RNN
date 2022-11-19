@@ -557,8 +557,9 @@ class TS_RNN:
             raise AssertionError(
                 f'Define n_features in init of TS_RNN, factors given: {input_df.shape[1]}, n_features: {self.n_features}')
 
+        self._last_known_target = target_train.iloc[-self.n_lags:, :]
         if factors_train is not None:
-            self._last_known_factors = factors_train.iloc[-self.n_lags:, :-1]
+            self._last_known_factors = factors_train.iloc[-self.n_lags:, :]
 
         # split into samples
         _X_train, _y_train = split_sequence(input_df.values,
@@ -587,8 +588,8 @@ class TS_RNN:
 
     def forecast(self, prediction_len):
         predicted = self.predict(
-            factors=np.array(self._last_known_factors) if self._last_known_factors is not None else None,
-            target=np.array(self._last_known_target),
+            factors=self._last_known_factors if self._last_known_factors is not None else None,
+            target=self._last_known_target,
             prediction_len=prediction_len)
         return predicted
 

@@ -32,10 +32,16 @@ def test_model_fit():
                       batch_size=12,
                       verbose=0)
 
-            predicted = model.predict(
+            predicted_pred = model.predict(
                 factors=factors_df[-model.n_lags:] if factors else None,
                 target=target[-model.n_lags:],
                 prediction_len=PRED_LEN).flatten()
 
+            predicted_for = model.forecast(prediction_len=PRED_LEN).flatten()
+
+            print(predicted_pred)
+            print(predicted_for)
+
             shutil.rmtree('TS_RNN_tuner_log', ignore_errors=True)
-            assert len(predicted) == PRED_LEN
+            assert len(predicted_pred) == PRED_LEN
+            assert list(predicted_pred) == list(predicted_for)
