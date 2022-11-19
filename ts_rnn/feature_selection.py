@@ -1,8 +1,10 @@
+import collections
+import random
+
+import matplotlib.pyplot as plt
 import numpy as np
 from tqdm import tqdm
-import random
-import collections
-import matplotlib.pyplot as plt
+
 from ts_rnn.utils import save_image, mean_squared_error, mean_absolute_error
 
 

@@ -1,10 +1,12 @@
 #################################           Load libs                      #############################################
-import matplotlib.pyplot as plt
-from ts_rnn.logger import logger
-import time
-import numpy as np
-import random
 import os
+import random
+import time
+
+import matplotlib.pyplot as plt
+import numpy as np
+
+from ts_rnn.logger import logger
 
 
 #################################           timeit                         #############################################

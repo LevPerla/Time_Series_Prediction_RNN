@@ -1,17 +1,19 @@
 # Load libs
 import json
-import os
+import logging
 import math
-import sys
+import os
 import shutil
+import sys
+
 import numpy as np
 import pandas as pd
-import logging
+from keras_tuner import RandomSearch, BayesianOptimization, Hyperband
+from tensorflow.keras.layers import Dense, Dropout, LSTM, GRU, Bidirectional, BatchNormalization, SimpleRNN
+from tensorflow.keras.models import Sequential, load_model
+
 from ts_rnn import config, utils
 from ts_rnn.logger import logger
-from tensorflow.keras.models import Sequential, load_model
-from keras_tuner import RandomSearch, BayesianOptimization, Hyperband
-from tensorflow.keras.layers import Dense, Dropout, LSTM, GRU, Bidirectional, BatchNormalization, SimpleRNN, RNN
 
 
 class TS_RNN:
