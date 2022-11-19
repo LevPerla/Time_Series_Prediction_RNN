@@ -1,5 +1,7 @@
 from keras_tuner import HyperParameters
 
+MODEL_STRATEGIES = ["Direct", "Recursive", "MiMo", 'DirRec', "DirMo"]
+
 DEFAULT_HP = HyperParameters()
 DEFAULT_ARCH = {"layers": [
     ["LSTM", {"units": DEFAULT_HP.Int(name='units',

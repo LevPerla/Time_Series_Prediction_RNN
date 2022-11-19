@@ -2,6 +2,7 @@ from ts_rnn.model import TS_RNN
 import numpy as np
 import shutil
 import pandas as pd
+from ts_rnn import config
 
 
 def test_model_fit():
@@ -11,7 +12,7 @@ def test_model_fit():
     f2 = (np.arange(1, len(target) + 1) ** 2).reshape(-1, 1)
     factors_df = pd.DataFrame(np.hstack((f1, f2)))
 
-    for strategy in ["Direct", "Recursive", "MiMo", 'DirRec', "DirMo"]:
+    for strategy in config.MODEL_STRATEGIES:
         for factors in [True, False]:
             model = TS_RNN(
                 n_lags=3,

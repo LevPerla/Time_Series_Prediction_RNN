@@ -6,10 +6,9 @@ import sys
 import numpy as np
 import pandas as pd
 import logging
+from ts_rnn import config, utils
 from ts_rnn.logger import logger
-from ts_rnn.config import DEFAULT_HP, DEFAULT_ARCH
 from tensorflow.keras.models import Sequential, load_model
-from ts_rnn.utils import split_sequence, history_plot, timeit
 from keras_tuner import RandomSearch, BayesianOptimization, Hyperband
 from tensorflow.keras.layers import Dense, Dropout, LSTM, GRU, Bidirectional, BatchNormalization, SimpleRNN, RNN
 
@@ -63,8 +62,8 @@ class TS_RNN:
         # Set model arch
         if rnn_arch is None:
             self.logger.warning(f'rnn_arch is not defined. Model will be compiled with default architecture')
-            self.rnn_arch = DEFAULT_ARCH
-            self.hp = DEFAULT_HP
+            self.rnn_arch = config.DEFAULT_ARCH
+            self.hp = config.DEFAULT_HP
         elif (rnn_arch is not None) and (tuner_hp is None):
             self.logger.warning(f'tuner_hp is not defined. Model will be trained without tuning architecture')
             self.rnn_arch = rnn_arch
@@ -99,10 +98,10 @@ class TS_RNN:
             self.logger.exception('Define n_lags and horizon')
             raise AssertionError('Define n_lags and horizon')
         try:
-            assert self.strategy in ["Direct", "Recursive", "MiMo", "DirRec", "DirMo"]
+            assert self.strategy in config.MODEL_STRATEGIES
         except AssertionError:
-            self.logger.exception('Use strategy from ["Direct", "Recursive", "MiMo", "DirRec", "DirMo"]')
-            raise AssertionError('Use strategy from ["Direct", "Recursive", "MiMo", "DirRec", "DirMo"]')
+            self.logger.exception(f'Use strategy from {config.MODEL_STRATEGIES}')
+            raise AssertionError(f'Use strategy from {config.MODEL_STRATEGIES}')
 
         try:
             assert self.tuner in ["RandomSearch", "BayesianOptimization", "Hyperband"]
@@ -230,7 +229,7 @@ class TS_RNN:
 
         return _model
 
-    @timeit
+    @utils.timeit
     def fit(self,
             target_train,
             target_val=None,
@@ -302,9 +301,9 @@ class TS_RNN:
                                                                  )
 
                 if self.save_dir is not None and ((validation_split != 0) or (validation_data is not None)):
-                    history_plot(history,
-                                 self.save_dir,
-                                 show=True if verbose > 0 else False)
+                    utils.history_plot(history,
+                                       self.save_dir,
+                                       show=True if verbose > 0 else False)
             else:
                 if self.strategy == "DirRec":
                     self.n_lags = true_n_lags + model_id  # needed to train DirRec strategy
@@ -361,7 +360,7 @@ class TS_RNN:
 
         return target_train, target_val, factors_train, factors_val
 
-    @timeit
+    @utils.timeit
     def predict(self, target, prediction_len, factors=None):
         """
         Prediction with auto-set method based by rnn_arch
@@ -405,8 +404,8 @@ class TS_RNN:
         elif self.strategy == 'DirMo':
             predicted = self._dirmo_pred(input_df)
         else:
-            self.logger.critical(f'Use strategy from ["Direct", "Recursive", "MiMo", "DirRec", "DirMo"]')
-            raise AssertionError(f'Use strategy from ["Direct", "Recursive", "MiMo", "DirRec", "DirMo"]')
+            self.logger.critical(f'Use strategy from {config.MODEL_STRATEGIES}')
+            raise AssertionError(f'Use strategy from {config.MODEL_STRATEGIES}')
 
         self.logger.info(f'[Prediction] End predict by {self.strategy} strategy')
         return predicted.flatten()
@@ -562,15 +561,15 @@ class TS_RNN:
             self._last_known_factors = factors_train.iloc[-self.n_lags:, :]
 
         # split into samples
-        _X_train, _y_train = split_sequence(input_df.values,
-                                            n_steps_in=self.n_lags + _i_model if (
-                                                    self.strategy == "DirRec") else self.n_lags,
-                                            n_steps_out=self.n_step_out,
-                                            _full_out=True if ((factors is not None) and (
-                                                    self.strategy in ["Recursive", "DirRec"])) else False,
-                                            _i_model=_i_model if (self.strategy in ["Direct", 'DirMo']) else 0,
-                                            _start_ind=_i_model * self.n_step_out - _i_model if (
-                                                    self.strategy == "DirMo") else 0)
+        _X_train, _y_train = utils.split_sequence(input_df.values,
+                                                  n_steps_in=self.n_lags + _i_model if (
+                                                          self.strategy == "DirRec") else self.n_lags,
+                                                  n_steps_out=self.n_step_out,
+                                                  _full_out=True if ((factors is not None) and (
+                                                          self.strategy in ["Recursive", "DirRec"])) else False,
+                                                  _i_model=_i_model if (self.strategy in ["Direct", 'DirMo']) else 0,
+                                                  _start_ind=_i_model * self.n_step_out - _i_model if (
+                                                          self.strategy == "DirMo") else 0)
         if val_len == 0:
             _X_test, _y_test = None, None
         else:
