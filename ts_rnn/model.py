@@ -605,14 +605,16 @@ class TS_RNN:
         for model_id in range(len(self.model_list)):
             self.model_list[model_id]["model"].summary()
 
-    def save(self, save_dir):
+    def save(self, model_name='tsrnn_model', save_dir='.'):
         """
         A method for saving model to h5 file
+        :param model_name: (str) name for your model
         :param save_dir: (str) path to h5 file with model
         :return: None
         """
-        models_folder_path = os.path.join(save_dir, "models")
-        os.makedirs(models_folder_path)
+        models_folder_path = os.path.join(save_dir, model_name)
+        if not os.path.exists(models_folder_path):
+            os.makedirs(models_folder_path)
         self.logger.info('[Model Saving] Saving model to file %s' % models_folder_path)
         with open(os.path.join(models_folder_path, 'ts_rnn.json'), 'w') as fp:
             json.dump({key: value for key, value in self.__dict__.items() if
@@ -630,10 +632,10 @@ def load_ts_rnn(path):
         params.update({'model_list': []})
     ts_rnn = TS_RNN(load=True)
     ts_rnn.__dict__ = params
+    ts_rnn.logger = logger
 
     for i, model_name in enumerate(sorted(os.listdir(path))):
         if '.h5' in model_name:
-            print(model_name)
             _model = load_model(os.path.join(path, model_name))
             ts_rnn.model_list.append({"model_name": model_name, "model": _model, 'tuner': None})
     return ts_rnn
