@@ -3,6 +3,7 @@ import json
 import os
 import math
 import sys
+import shutil
 import numpy as np
 import pandas as pd
 import logging
@@ -320,6 +321,8 @@ class TS_RNN:
                 self.model_list[model_id]["model"] = self.model_list[model_id]["tuner"].get_best_models(num_models=1)[0]
                 if self.strategy == "DirRec":
                     self.n_lags = true_n_lags
+
+        shutil.rmtree(os.path.join(self.save_dir, 'TS_RNN_tuner_log'), ignore_errors=True)
         self.logger.info('[Training] Training ended')
         return self
 
