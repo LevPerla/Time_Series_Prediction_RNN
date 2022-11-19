@@ -1,6 +1,5 @@
 #################################           Load libs                      #############################################
 import os
-import random
 import time
 
 import matplotlib.pyplot as plt
@@ -20,18 +19,15 @@ def timeit(f):
 
     return timed
 
-
 #################################              mae                         #############################################
 def mean_absolute_error(y_true, y_pred):
     mae = np.absolute(np.subtract(y_true, y_pred)).mean()
     return mae
 
-
 #################################              mse                         #############################################
 def mean_squared_error(y_true, y_pred):
     mse = np.square(np.subtract(y_true, y_pred)).mean()
     return mse
-
 
 #################################          Metrics calculation             #############################################
 def metrics_eval(y_true, y_pred, print_result=True, save_dir=None, name='metrics'):
@@ -83,7 +79,6 @@ def save_image(save_dir, name, fmt="png"):
     os.chdir(save_dir)
     plt.savefig('{}.{}'.format(name, fmt))
     os.chdir(pwd)
-
 
 #################################          Plot train/test/predicted       #############################################
 def train_test_pred_plot(train, test, predicted, save_dir=None, show=True):
@@ -178,29 +173,6 @@ def train_val_test_pred_plot(train, val, test, val_pred, test_pred, save_dir=Non
     if show:
         plt.show()
     plt.close()
-
-
-#################################          Satting seed                    #############################################
-def set_seed(seed_value):
-    # 1. Set `PYTHONHASHSEED` environment variable at a fixed value
-    os.environ['PYTHONHASHSEED'] = str(seed_value)
-
-    # 2. Set `python` built-in pseudo-random generator at a fixed value
-    random.seed(seed_value)
-
-    # 3. Set `numpy` pseudo-random generator at a fixed value
-    np.random.seed(seed_value)
-
-    # 4. Set the `tensorflow` pseudo-random generator at a fixed value
-    # tf.random.set_seed(seed_value)
-    # for later versions:
-    # tf.compat.v1.set_random_seed(seed_value)
-
-    # 5. Configure a new global `tensorflow` session
-    # session_conf = tf.compat.v1.ConfigProto(intra_op_parallelism_threads=1, inter_op_parallelism_threads=1)
-    # sess = tf.compat.v1.Session(graph=tf.compat.v1.get_default_graph(), config=session_conf)
-    # tf.compat.v1.keras.backend.set_session(sess)
-
 
 #################################          split_sequence                  #############################################
 def split_sequence(data, n_steps_in, n_steps_out, _full_out=False, _i_model=0, _start_ind=0):
