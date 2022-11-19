@@ -1,7 +1,7 @@
 **/.idea
 **/ts_rnn/model/grid_search.py
 **/ts_rnn/model/validation.py
-**/reports/
+reports/
 /experiments.py
 /model
 /notebooks/Compate_data_transformers.ipynb
