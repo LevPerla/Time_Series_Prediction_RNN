@@ -124,10 +124,10 @@ FIT
 ```python
 my_callbacks = [callbacks.EarlyStopping(patience=30, monitor='val_loss')]
 
-model.fit(factors_train=factors_val,  # np.array with factors time series
-          target_train=target_val,  # np.array with target time series
-          factors_val=factors_val,  # np.array with factors time series
-          target_val=target_val,  # np.array with target time series
+model.fit(factors_train=factors_val,  # pd.DataFrame with factors time series
+          target_train=target_val,  # pd.DataFrame or pd.Series with target time series
+          factors_val=factors_val,  # pd.DataFrame with factors time series
+          target_val=target_val,  # pd.DataFrame or pd.Series with target time series
           epochs=100,  # num epoch to train
           batch_size=12,  # batch_size
           callbacks=my_callbacks,  # Keras callbacks
@@ -143,6 +143,12 @@ predicted = model.predict(factors=factors_to_pred,
                           prediction_len=len(y_test))
 ```
 
+FORECAST
+
+```python
+predicted = model.forecast(prediction_len=HORIZON)
+```
+
 SUMMARY
 
 ```python
@@ -152,7 +158,7 @@ model.summary()
 SAVE
 
 ```python
-model.save(model_folder)
+model.save(model_name='tsrnn_model', save_dir='path')
 ```
 
 Also you may load TS_RNN model from folder
@@ -160,7 +166,7 @@ Also you may load TS_RNN model from folder
 ```python
 from ts_rnn.model import load_ts_rnn
 
-model = load_ts_rnn(os.path.join(model_folder, 'models'))
+model = load_ts_rnn(os.path.join('path', 'tsrnn_model'))
 ```
 
 ### Simple example of usage:
