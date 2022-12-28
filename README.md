@@ -46,8 +46,6 @@ python setup.py install
 
 ## Documentation
 
-The full documentation haven't ready yet. I hope, it will show later.
-
 ### Getting started
 To import TS_RNN model run
 
